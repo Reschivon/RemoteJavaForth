@@ -32,6 +32,7 @@ public class BluetoothHost {
         while(true) {
             if(!active)
                 continue;
+
             String lineRead;
             try {
                 lineRead = bReader.readLine();
@@ -97,7 +98,7 @@ public class BluetoothHost {
 
         active = true;
 
-        send("Hello from the Host");
+        // send("Hello from the Host");
 
         while (active) {
             Thread.onSpinWait();
