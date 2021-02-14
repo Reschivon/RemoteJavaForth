@@ -1,0 +1,1 @@
+# Remote Android Forth REPL\nPC bluetooth host takes input from the user (on the host machine), sends them over bluetooth to the Android Client, waits for the client to process the Forth command, and displays the reponse by the client\n\nReflection is supported, so you can access Java methods and classes from Forth without special interfaces
