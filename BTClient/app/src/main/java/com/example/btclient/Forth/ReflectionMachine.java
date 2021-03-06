@@ -27,7 +27,7 @@ public class ReflectionMachine {
     public static void methods(Object target){
         Method[] l = target.getClass().getMethods();
         for(Method f:l){
-            System.out.println(f);
+            System.out.println("Method: " + f);
         }
         System.out.println();
     }

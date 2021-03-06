@@ -1,63 +1,62 @@
 package com.example.btclient;
  
+import android.text.method.ScrollingMovementMethod;
 import android.widget.TextView;
+import com.example.btclient.Forth.Interpreter;
 import com.example.bttest.R;
 import android.app.Activity;
 import android.os.Bundle;
-import com.example.btclient.Forth.*;
 import com.example.btclient.Networking.*;
 
-import java.io.InputStream;
+import java.util.Arrays;
 
 public class MainActivity extends Activity {
 
-  Bluetooth bluetooth;
+  BluetoothClient bluetoothClient;
+  Interpreter interpreter;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.main);
 
-    bluetooth = new Bluetooth(
+    interpreter = new Interpreter(
+            message -> bluetoothClient.send(message),
+            new qwer());
+
+    bluetoothClient = new BluetoothClient(
             this, "C8:21:58:6A:A3:A0",
             "00001101-0000-1000-8000-00805F9B34FB",
-            (TextView) findViewById(R.id.out));
+            findViewById(R.id.out),
+            response -> {
+              System.out.println("added string " + response + " to buffer " + interpreter.nexttoks);
+              interpreter.nexttoks.addAll(
+                      Arrays.asList(response.split(" ")));
+            });
+  }
 
-    Interpreter.bluetooth = bluetooth;
-    Interpreter.setNativeRoot(this);
-  }
- 
-  @Override
-  public void onStart() {
-    super.onStart();
-  }
- 
   @Override
   public void onResume() {
     super.onResume();
+    bluetoothClient.startHostSession();
 
-    bluetooth.onResume();
+    new Thread(() -> interpreter.begin()).start();
 
-    bluetooth.sendln("ur mum gaey");
-
-    Interpreter.begin();
   }
- 
+
   @Override
   public void onPause() {
     super.onPause();
+    bluetoothClient.endHostSession();
+  }
 
-    bluetooth.onPause();
-  }
- 
-  @Override
-  public void onStop() {
-    super.onStop();
-  }
- 
-  @Override
-  public void onDestroy() {
-    super.onDestroy();
+  class qwer {
+    public void saySomething() {
+      bluetoothClient.send("Hi Hi Hi\n");
+    }
+    public void saySomethingElse(int i) {
+      bluetoothClient.send("Hi " + i + "\n");
+    }
   }
 
 }

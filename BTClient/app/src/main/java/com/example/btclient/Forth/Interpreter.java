@@ -1,50 +1,68 @@
 package com.example.btclient.Forth;
 
-import com.example.btclient.Networking.Bluetooth;
+import com.example.btclient.MainActivity;
+import com.example.btclient.Networking.BluetoothClient;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 
+
 public class Interpreter {
-    public static boolean DEBUG = false;
-    private static final String setPlainText = "\033[0;0m";
-    private static final String setBoldText = "\033[0;1m";
-    private static boolean profanity;
+    public boolean DEBUG = false;
+    private final String setPlainText = "\033[0;0m";
+    private final String setBoldText = "\033[0;1m";
+    private boolean profanity;
 
     // state of interpreter
-    static boolean immediate = true;
+    boolean immediate = true;
 
     // address of first pointer in the linked list that comprises the dictionary
-    static int HERE = -1;
+    int HERE = -1;
 
     // address of initial opcode, or main() for c programmers.
     // will be populated later
-    static int ENTRY_POINT = -1;
+    int ENTRY_POINT = -1;
 
     // input
-    public static scan input;
+    public scan input;
     // output
-    public static Bluetooth bluetooth;
+    public interface outputListener{
+        void outputInvoked(String message);
+    }
+    private outputListener outputListener;
+    public void setOutputListener(outputListener o){
+        outputListener = o;
+    }
     // memory. Double array
-    static List<Integer> memory = new ArrayList<>();
+    private List<Integer> memory = new ArrayList<>();
     // native java objects, extension of memory (get with negative addresses on stack)
-    static List<Object> objects = new ArrayList<>();
+    private List<Object> objects = new ArrayList<>();
     // starting point for native java methods and fields
-    static Object nativeRoot = null;
-    public static void setNativeRoot(Object o){nativeRoot = o;}
+    private Object nativeRoot = null;
+    public void setNativeRoot(Object o){nativeRoot = o;}
     // data stack
-    static Stack stack = new Stack();
+    private Stack stack = new Stack();
     // call stack for nested execution
-    static Stack call_stack = new Stack();
+    private Stack call_stack = new Stack();
 
     // link up names of primitives to their java code
-    static HashMap<Integer, String> primitive_words = new HashMap<>();
+    private HashMap<Integer, String> primitive_words = new HashMap<>();
+
+    void output(Object s){
+        outputListener.outputInvoked(s.toString());
+    }
+    void outputln(Object s){
+        output(s.toString() + "\n");
+    }
 
     /**
      * Interpreter use only, do not confuse with Forth word
      * Appends a new a word definition stub to memory array (no instructions)
      */
-    static void create(String name){
+    void create(String name){
         // add link in linked list to prev word
         memory.add(HERE);
         // update head of linked list
@@ -58,7 +76,7 @@ public class Interpreter {
     /**
      * Interpreter use only. Sets the most recently defined word as immediate
      */
-    static void set_immediate(){
+    void set_immediate(){
         memory.set(HERE + memory.get(HERE), 1);
     }
 
@@ -67,7 +85,7 @@ public class Interpreter {
      * for a word that matches the name in the string
      * @return Address of word, if found. -1 if not found
      */
-    static int search_word(String name)
+    int search_word(String name)
     {
         int here = HERE;
         while(here != -1)
@@ -84,24 +102,23 @@ public class Interpreter {
     /**
      * Convert word address to address of its immediate flag
      */
-    public static int addressToFlag(int address)
+    public int addressToFlag(int address)
     {
         return address + memory.get(address);
     }
     /**
      * Convert word address to address of its first instruction
      */
-    public static int addressToOp(int address)
+    public int addressToOp(int address)
     {
         return address + memory.get(address) + 1;
     }
-
 
     /**
      * See other definition of declare primitive. Defaults
      * to non-immediate
      */
-    static void declarePrimitive(String name)
+    void declarePrimitive(String name)
     {
         declarePrimitive(name, false);
     }
@@ -111,7 +128,7 @@ public class Interpreter {
      * @param name name of word
      * @param immediate Flags for immediate word
      */
-    static void declarePrimitive(String name, boolean immediate)
+    void declarePrimitive(String name, boolean immediate)
     {   // add link in linked list
         create(name);
 
@@ -124,7 +141,7 @@ public class Interpreter {
 
     }
 
-    static {
+    {
         //allow primitive words to be found in dictionary
         declarePrimitive("new");
         declarePrimitive("/");
@@ -189,10 +206,20 @@ public class Interpreter {
         memory.add(search_word("return"));
     }
 
-    
-    public static void begin() {
-        setNativeRoot(memory);
+    public static void main(String[] args) {
+        Interpreter interpreter = new Interpreter(
+                System.out::print,
+                new Object());
 
+        Scanner scanner = new Scanner(System.in);
+        new Thread(() -> {while(true)
+            interpreter.nexttoks.addAll(
+                Arrays.asList(scanner.nextLine().split(" ")));}).start();
+        new Thread(() -> interpreter.begin()).start();
+    }
+
+    public volatile List<String> nexttoks = new ArrayList<>();
+    public void begin() {
         // run file start.f
         Scanner in = new Scanner(startup);
         input = new scan(){
@@ -206,46 +233,37 @@ public class Interpreter {
                 return in.next();
             }
         };
-        bluetooth.sendln("Startup file found");
+        outputln("Startup file found");
         repl();
 
         // run from terminal input
         input = new scan() {
-            List<String> nexttoks = new ArrayList<String>();
-
-            private List<String> readStream(){
-                return new LinkedList<String>(
-                        Arrays.asList(
-                                bluetooth.currentChannel.read().split(" ")));
-            }
-
             @Override
             public boolean hasNext() {
-                if(nexttoks.size() == 0){
-                    nexttoks = readStream();
+                while (nexttoks.size() == 0){
                 }
-                return nexttoks.size() > 0;
+                return true;
             }
 
             @Override
             public String next() {
                 if(hasNext()){
-                    String ret = nexttoks.get(nexttoks.size()-1);
-                    Bluetooth.log("...return..." + ret);
-                    nexttoks.remove(nexttoks.size()-1);
-
-                    return ret;
+                    return nexttoks.remove(0);
                 }
                 return null;
             }
         };
-        bluetooth.sendln("Commence Interactive Remote REPL");
+        outputln("Commence Interactive Remote REPL");
         repl();
-        bluetooth.sendln("REPL is over");
+        output("REPL is over");
     }
 
+    public Interpreter(outputListener outputL, Object root){
+        setOutputListener(outputL);
+        setNativeRoot(root);
+    }
     
-    public static void repl() {
+    private void repl() {
         //DEBUG = true;
 
         /* All instructions must be stored in memory, even the
@@ -280,7 +298,7 @@ public class Interpreter {
                 if(primitive_words.containsKey(word_address))
                 {
                     if(DEBUG)
-                        bluetooth.send(" r::" + read_string(word_address));
+                        outputln(" r::" + read_string(word_address));
 
                     // execute primitive
                         try {
@@ -290,18 +308,19 @@ public class Interpreter {
                         } catch (ClassNotFoundException e) {
                         } catch (NoSuchMethodException e) {
                         } catch (InstantiationException e){
-                        }
+                        }catch (Exception e) {
+                            outputln("Uncaught Exception " + e.toString());}
 
                 }else{
                     if(DEBUG)
-                        bluetooth.send(" rf::" + read_string(word_address));
+                        outputln(" rf::" + read_string(word_address));
 
                     // execute forth word
                     call_stack.add(word_address + memory.get(word_address));
                 }
             }else{
                 if(DEBUG)
-                    bluetooth.send(" c::" + read_string(word_address));
+                    outputln(" c::" + read_string(word_address));
 
                 // compile word
                 memory.add(word_address);
@@ -316,7 +335,7 @@ public class Interpreter {
                 if(next_word == null) return;
 
                 if(DEBUG)
-                    bluetooth.sendln("\nNext word: " + next_word);
+                    outputln("\nNext word: " + next_word);
 
                 // do not allow the call stack to be incremented since we just reset the call stack
                 continue;
@@ -331,15 +350,15 @@ public class Interpreter {
      * executes the relevant primitive based on its name
      */
     
-    static void primitive(String word) throws InvocationTargetException, IllegalAccessException, ClassNotFoundException, NoSuchMethodException, InstantiationException {
+    void primitive(String word) throws InvocationTargetException, IllegalAccessException, ClassNotFoundException, NoSuchMethodException, InstantiationException {
         switch (word) {
             case "fields": ReflectionMachine.fields(getObject()); break;
             case "methods" : ReflectionMachine.methods(getObject()); break;
-            //case "new" : newOperator();
+            case "new" : /*newOperator();*/ break;
             case "native" : addObject(nativeRoot); break;
-            //case "/" : dotOperator();
-            case "donothing" : bluetooth.send(""); break;
-            case "print" : bluetooth.sendln(stack.pop()); break;
+            case "/" : dotOperator(); break;
+            case "donothing" : output(""); break;
+            case "print" : outputln(stack.pop()); break;
             case "return" : call_stack.remove(call_stack.size() - 1); break;
             case "word" : stack.add(search_word(input.next())); break;
             case "stack>mem" : memory.add(stack.pop()); break;
@@ -348,18 +367,18 @@ public class Interpreter {
             case "]" : immediate = false; break;
             case "seestack" : {
                 for (int tok : stack)
-                    bluetooth.send(tok + " ");
-                bluetooth.sendln("<-"); break;
+                    output(tok + " ");
+                outputln("<-"); break;
             }
             case "seeobj" : {
                 for (Object tok : objects)
-                    bluetooth.send(tok.getClass().getName() + " ");
-                bluetooth.sendln("<-"); break;
+                    output(tok.getClass().getName() + " ");
+                outputln("<-"); break;
             }
             case "seemem" : show_mem(); break;
-            case "seerawmem" : bluetooth.sendln(memory); break;
+            case "seerawmem" : outputln(memory); break;
             case "stringliteral" : write_string(input.next(), memory.size()); break;
-            case "read-string" : bluetooth.sendln(read_string(stack.pop())); break;
+            case "read-string" : outputln(read_string(stack.pop())); break;
             case "literal" : {
                 call_stack.incrementLast();
                 stack.add(memory.get(call_stack.last())); break;
@@ -408,49 +427,51 @@ public class Interpreter {
             //case "quit" : System.exit(0);
         }
     }
-    static void addObject(Object o){
+    void addObject(Object o){
         objects.add(o);
         stack.add(-objects.size());
     }
-    static Object getObject(){
-        return objects.get(-stack.pop()-1);
+    Object getObject(){
+        return objects.get( (-stack.pop())-1 );
     }
 
 
-    /*static void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
-        String classname = input.nextLine();
+    void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
+        String classname = input.next();
         Constructor[] constructors;
             try {
         constructors = Class.forName(classname).getConstructors();
             } catch (ClassNotFoundException e){
-                bluetooth.sendln(classname + " was not found. Fully qualified names required");
+                outputln(classname + " was not found. Fully qualified names required");
         return;
             }
 
-        *//*Class[] o = constructors[0].getParameterTypes();
-        for(var i:o){
-            System.out.println(i);
-        }*//*
+        outputln("Constructor params: ");
+        Class[] o = constructors[0].getParameterTypes();
+        for(Class i:o){
+            output(i + " ");
+        }
 
-        Object[] params = new Object[constructors[0].getParameterCount()];
+        Object[] params = new Object[constructors[0].getParameterTypes().length];
         for(int i=0; i<params.length; i++){
             params[i] = stack.pop();
         }
         addObject(constructors[0].newInstance(params));
-    }*/
+    }
 
     // (caller object '' name of attribute -- return value or address of returned object)
     
-    /*static void dotOperator() throws InvocationTargetException, IllegalAccessException {
+    void dotOperator() throws InvocationTargetException, IllegalAccessException {
         // the calling object
         Object actor = getObject();
         // the name of the object's field or method
-        String fieldOrClass = input.nextLine();
+        String fieldOrClass = input.next();
+
         // get actual type of attribute
         Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
 
         if (attribute == null) {
-            bluetooth.send("field or class " + fieldOrClass + " not found as attribute");
+            outputln("field or class " + fieldOrClass + " not found as attribute");
         }
 
         // call a method and push return to stack
@@ -458,7 +479,7 @@ public class Interpreter {
             Method themethod = ((Method)attribute);
 
             // get parameters
-            Object[] params = new Object[themethod.getParameterCount()];
+            Object[] params = new Object[themethod.getParameterTypes().length];
 
             for(int i=0; i<params.length;i++){
                 int stackElem = stack.pop();
@@ -487,25 +508,23 @@ public class Interpreter {
                 addObject(thefield.get(actor));
             }
         }
-    }*/
+    }
 
     /**
      * Take next instruction from input stream and prepare it
      * for execution by placing the relevant opcode in memory
      * and reinitializing the call stack
      */
-    static String nextInstruction()
+    String nextInstruction()
     {
         // usually EOF when reading from file
         if(!input.hasNext()) {
-            Bluetooth.log("...no next word");
+            outputln("....end of file");
             return null;
         }
 
-
         // get next token from input
         String next_Word = input.next();
-        Bluetooth.log("word: " + next_Word);
         // if it's a number, then deal with the number and skip to next
             try{
         int val = Integer.valueOf(next_Word);
@@ -527,7 +546,7 @@ public class Interpreter {
         // does address correspond to existing word?
         if(search_word(next_Word) == -1)
         {   // word not found
-            bluetooth.sendln("word " + next_Word + " not found");
+            outputln("word " + next_Word + " not found");
 
             //set empty instruction at ENTRY_POINT
             memory.set(ENTRY_POINT, search_word("donothing"));
@@ -543,7 +562,7 @@ public class Interpreter {
      * See the other definition of write_string
      * This defaults to writing to memory array
      */
-    static void write_string(String name, int address)
+    void write_string(String name, int address)
     {
         write_string(name, address, memory);
     }
@@ -555,7 +574,7 @@ public class Interpreter {
      * @param address The index of the first integer written
      * @param list The array to be written to
      */
-    static void write_string(String name, int address, List<Integer> list)
+    void write_string(String name, int address, List<Integer> list)
     {
         byte[] b = name.getBytes();
         // length integer
@@ -573,10 +592,10 @@ public class Interpreter {
      * @param address address in the mem array of first integer
      * @return String in java object format
      */
-    static String read_string(int address)
+    String read_string(int address)
     {
         if(memory.get(address)-1<0)
-            bluetooth.send("string length invalid: "+(memory.get(address)-1));
+            outputln("string length invalid: "+(memory.get(address)-1));
 
         // read length of string
         byte[] str = new byte[memory.get(address)-1];
@@ -597,7 +616,7 @@ public class Interpreter {
      * Ignores other non-word data, like variable values
      * Should only be used for debugging; assumptions made
      */
-    static void show_mem()
+    void show_mem()
     {   //make array of word addresses
         List<Integer> pointers = new ArrayList<>();
 
@@ -616,7 +635,7 @@ public class Interpreter {
             String word_name = read_string(word_address);
             int immediate = memory.get(word_address + memory.get(word_address));
 
-            bluetooth.sendln(
+            output(
                     String.format("%-25s %d %s ", setBoldText + word_name + setPlainText, word_address, immediate==1?"immdt":"     "));
 
             // first opcode of the word
@@ -636,25 +655,25 @@ public class Interpreter {
                 if(name.equals("return"))
                     break;
 
-                bluetooth.sendln(name + " ");
+                output(name + " ");
 
                 // special condition if next element is read as literal
                 if(name.equals("literal") || name.equals("branch") || name.equals("branch?"))
                 {
                     j++;
-                    bluetooth.send(memory.get(j) + " ");
+                    output(memory.get(j) + " ");
                 }
             }
-            bluetooth.send("");
+            outputln("");
         }
 
-        bluetooth.sendln("");
+        outputln("");
     }
 
     /**
      * Basically an Integer Arraylist but with convenient methods
      */
-    public static class Stack extends ArrayList<Integer> {
+    public class Stack extends ArrayList<Integer> {
         public int pop(){
             return remove(size()-1);
         }
@@ -677,7 +696,7 @@ public class Interpreter {
         String next();
     }
 
-    static String startup =
+    String startup =
             "\n" +
                     ": immediate\n" +
                     "    here read\n" +
