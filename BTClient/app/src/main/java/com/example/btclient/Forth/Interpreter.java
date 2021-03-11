@@ -1,13 +1,10 @@
 package com.example.btclient.Forth;
 
-import com.example.btclient.MainActivity;
-import com.example.btclient.Networking.BluetoothClient;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Scanner;
 
 
 public class Interpreter {
@@ -16,18 +13,23 @@ public class Interpreter {
     private final String setBoldText = "\033[0;1m";
     private boolean profanity;
 
-    // state of interpreter
-    boolean immediate = true;
-
     // address of first pointer in the linked list that comprises the dictionary
     int HERE = -1;
-
     // address of initial opcode, or main() for c programmers.
     // will be populated later
     int ENTRY_POINT = -1;
+    State state;
 
-    // input
-    public scan input;
+    // memory. Double array
+    List<Integer> memory = new ArrayList<>();
+
+    // starting point for native java methods and fields
+    Object nativeRoot = null;
+    public void setNativeRoot(Object o){nativeRoot = o;}
+    // link up names of primitives to their java code
+    HashMap<Integer, Consumer<State>> primitives = new HashMap<>();
+
+
     // output
     public interface outputListener{
         void outputInvoked(String message);
@@ -36,20 +38,6 @@ public class Interpreter {
     public void setOutputListener(outputListener o){
         outputListener = o;
     }
-    // memory. Double array
-    private List<Integer> memory = new ArrayList<>();
-    // native java objects, extension of memory (get with negative addresses on stack)
-    private List<Object> objects = new ArrayList<>();
-    // starting point for native java methods and fields
-    private Object nativeRoot = null;
-    public void setNativeRoot(Object o){nativeRoot = o;}
-    // data stack
-    private Stack stack = new Stack();
-    // call stack for nested execution
-    private Stack call_stack = new Stack();
-
-    // link up names of primitives to their java code
-    private HashMap<Integer, String> primitive_words = new HashMap<>();
 
     void output(Object s){
         outputListener.outputInvoked(s.toString());
@@ -85,8 +73,7 @@ public class Interpreter {
      * for a word that matches the name in the string
      * @return Address of word, if found. -1 if not found
      */
-    int search_word(String name)
-    {
+    int search_word(String name) {
         int here = HERE;
         while(here != -1)
         {
@@ -99,28 +86,14 @@ public class Interpreter {
         return -1;
     }
 
-    /**
-     * Convert word address to address of its immediate flag
-     */
-    public int addressToFlag(int address)
-    {
-        return address + memory.get(address);
-    }
-    /**
-     * Convert word address to address of its first instruction
-     */
-    public int addressToOp(int address)
-    {
-        return address + memory.get(address) + 1;
-    }
+
 
     /**
      * See other definition of declare primitive. Defaults
      * to non-immediate
      */
-    void declarePrimitive(String name)
-    {
-        declarePrimitive(name, false);
+    void declarePrimitive(String name, Consumer<State> r) {
+        declarePrimitive(name, r, false);
     }
 
     /**
@@ -128,61 +101,114 @@ public class Interpreter {
      * @param name name of word
      * @param immediate Flags for immediate word
      */
-    void declarePrimitive(String name, boolean immediate)
-    {   // add link in linked list
+    void declarePrimitive(String name, Consumer<State> r, boolean immediate) {   // add link in linked list
         create(name);
 
         // register word as primitive
         // allow the relevant java code to be found
-        primitive_words.put(HERE, name);
+        primitives.put(HERE, r);
 
         if(immediate)
             memory.set(addressToFlag(HERE), 1);
 
     }
+    /**
+     * Convert word address to address of its immediate flag
+     */
+    public int addressToFlag(int address) {
+        return address + memory.get(address);
+    }
+    /**
+     * Convert word address to address of its first instruction
+     */
+    public int addressToOp(int address) {
+        return address + memory.get(address) + 1;
+    }
 
     {
-        //allow primitive words to be found in dictionary
-        declarePrimitive("new");
-        declarePrimitive("/");
-        declarePrimitive("fields");
-        declarePrimitive("methods");
-        declarePrimitive("seeobj");
-        declarePrimitive("native");
-        declarePrimitive("seestack");
-        declarePrimitive("seemem");
-        declarePrimitive("seerawmem");
-        declarePrimitive("memposition");
-        declarePrimitive("here");
-        declarePrimitive("print");
-        declarePrimitive("return", true);
-        declarePrimitive("word");
-        declarePrimitive("stack>mem");
-        declarePrimitive("[", true);
-        declarePrimitive("]");
-        declarePrimitive("literal", true);
-        declarePrimitive("read");
-        declarePrimitive("donothing");
-        declarePrimitive("set");
-        declarePrimitive("+");
-        declarePrimitive("-");
-        declarePrimitive("*");
-        declarePrimitive("=");
-        declarePrimitive("dup");
-        declarePrimitive("swap");
-        declarePrimitive("drop");
-        declarePrimitive("over");
-        declarePrimitive("not");
-        declarePrimitive("and");
-        declarePrimitive("or");
-        declarePrimitive("xor");
-        declarePrimitive("branch");
-        declarePrimitive("branch?");
-        declarePrimitive("stringliteral");
-        declarePrimitive("read-string");
-        declarePrimitive("create");
-        declarePrimitive("profanity");
-        declarePrimitive("quit");
+        /*MutableBoolean immediate = state.immediate;
+        List<Object> objects = state.objects;
+        Stack stack = state.stack;
+        Stack call_stack = state.call_stack;*/
+
+
+        declarePrimitive( "new" , state -> {}); /*newOperator();*/
+        declarePrimitive( "/" , state -> {
+            try {
+                state.dotOperator();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        });
+        declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject()));
+        declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject()));
+        declarePrimitive( "seeobj" , state -> {
+            for (Object tok : state.objects)
+                output(tok.getClass().getName() + " ");
+            outputln("<-");
+        });
+        declarePrimitive( "native" , state -> state.addObject(nativeRoot));
+        declarePrimitive( "seestack" , state -> {
+            for (int tok : state.stack)
+                output(tok + " ");
+            outputln("<-");
+        });
+        declarePrimitive( "seemem" , state -> show_mem());
+        declarePrimitive( "seerawmem" , state -> outputln(memory));
+        declarePrimitive( "memposition" , state -> state.stack.add(memory.size()));
+        declarePrimitive( "here" , state -> state.stack.add(HERE));
+        declarePrimitive( "print" , state -> outputln(state.stack.pop()));
+        declarePrimitive( "return" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
+        declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next())));
+        declarePrimitive( "stack>mem" , state -> memory.add(state.stack.pop()));
+        declarePrimitive( "[" , state -> state.immediate.set(true), true);
+        declarePrimitive( "]" , state -> state.immediate.set(false));
+        declarePrimitive( "literal" , state -> {
+            state.call_stack.incrementLast();
+            state.stack.add(memory.get(state.call_stack.last()));
+        }, true);
+        declarePrimitive( "read" , state -> state.stack.add(memory.get(state.stack.pop())));
+        declarePrimitive( "donothing" , state -> output(""));
+        declarePrimitive( "set" , state -> { //value, address <-- top of stack
+            int address = state.stack.pop();
+            if (address == memory.size()) memory.add(state.stack.pop());
+            else memory.set(address, state.stack.pop());
+        });
+        declarePrimitive( "+" , state -> state.stack.add(state.stack.pop() + state.stack.pop()));
+        declarePrimitive( "-" , state -> state.stack.add(-state.stack.pop() + state.stack.pop()));
+        declarePrimitive( "*" , state -> state.stack.add(state.stack.pop() * state.stack.pop()));
+        declarePrimitive( "=" , state -> state.stack.add(state.stack.pop() == state.stack.pop() ? 1 : 0));
+        declarePrimitive( "not" , state -> state.stack.add(state.stack.pop() == 0 ? 1 : 0));
+        declarePrimitive( "and" , state -> state.stack.add(state.stack.pop() & state.stack.pop()));
+        declarePrimitive( "or" , state -> state.stack.add(state.stack.pop() | state.stack.pop()));
+        declarePrimitive( "xor" , state -> state.stack.add(state.stack.pop() ^ state.stack.pop()));
+        declarePrimitive( "swap" , state -> {
+            int p = state.stack.pop();
+            state.stack.add(state.stack.size() - 1, p);
+        });
+        declarePrimitive( "over" , state -> {
+            state.stack.add(state.stack.get(state.stack.size()-2));
+        });
+        declarePrimitive( "dup" , state -> state.stack.add(state.stack.last()));
+        declarePrimitive( "drop" , state -> state.stack.remove(state.stack.size() - 1));
+
+        declarePrimitive( "stringliteral" , state -> write_string(state.input.next(), memory.size()));
+        declarePrimitive( "read-string" , state -> outputln(read_string(state.stack.pop())));
+        declarePrimitive( "create" , state -> {
+            memory.add(HERE);
+            HERE = memory.size();
+        });
+        declarePrimitive( "branch" , state -> //advance pointer by instruction at current pointer position
+                state.call_stack.set(state.call_stack.size() - 1, state.call_stack.last() + memory.get(state.call_stack.last() + 1)));
+        declarePrimitive( "branch?", state ->  {
+            if (state.stack.last() == 0) //advance pointer by instruction at current pointer position
+                state.call_stack.setLast(state.call_stack.last() + memory.get(state.call_stack.last() + 1));
+            else //jump over the offset by 1
+                state.call_stack.incrementLast();
+            state.stack.pop();
+        });
 
         create(":");
         memory.add(search_word("create"));
@@ -206,53 +232,39 @@ public class Interpreter {
         memory.add(search_word("return"));
     }
 
+    public void repl(){
+        // set the reserved address to nothing; the program will populate this
+        // accordingly as it parses the input stream
+        memory.set(ENTRY_POINT, search_word("donothing"));
+
+        // set the instruction after to return
+        memory.set(ENTRY_POINT+1, search_word("return"));
+
+        // set call stack to execute the reserved instruction address
+        state.call_stack.add(ENTRY_POINT+1);
+        state.repl();
+    }
+
     public static void main(String[] args) {
         Interpreter interpreter = new Interpreter(
                 System.out::print,
                 new Object());
 
         Scanner scanner = new Scanner(System.in);
-        new Thread(() -> {while(true)
-            interpreter.nexttoks.addAll(
-                Arrays.asList(scanner.nextLine().split(" ")));}).start();
+        new Thread(() -> {
+            while(true) {
+                //TODO figure out why these cant be one line
+                String feed = scanner.nextLine();
+                interpreter.state.input.feed(feed);
+            }
+        }).start();
         new Thread(() -> interpreter.begin()).start();
+
     }
 
-    public volatile List<String> nexttoks = new ArrayList<>();
     public void begin() {
-        // run file start.f
-        Scanner in = new Scanner(startup);
-        input = new scan(){
-            @Override
-            public boolean hasNext() {
-                return in.hasNext();
-            }
-
-            @Override
-            public String next() {
-                return in.next();
-            }
-        };
-        outputln("Startup file found");
-        repl();
-
         // run from terminal input
-        input = new scan() {
-            @Override
-            public boolean hasNext() {
-                while (nexttoks.size() == 0){
-                }
-                return true;
-            }
-
-            @Override
-            public String next() {
-                if(hasNext()){
-                    return nexttoks.remove(0);
-                }
-                return null;
-            }
-        };
+        state.input = new BufferedIO.FeedableBufferedIO();
         outputln("Commence Interactive Remote REPL");
         repl();
         output("REPL is over");
@@ -261,182 +273,19 @@ public class Interpreter {
     public Interpreter(outputListener outputL, Object root){
         setOutputListener(outputL);
         setNativeRoot(root);
-    }
-    
-    private void repl() {
-        //DEBUG = true;
 
-        /* All instructions must be stored in memory, even the
-         * uncompiled immediate mode stuff. ENTRY_POINT is a pointer
-         * to an integer of reserved space for instructions
-         * executed directly from the input stream. At ENTRY_POINT + 1
-         * is a return which will clear the pointer to ENTRY_POINT
-         * after the instruction there executes
-         */
+        state = new State(this);
 
-        // set call stack to execute the reserved instruction address
-        call_stack.add(ENTRY_POINT+1);
+        state.input = new BufferedIO.FeedableBufferedIO();
+        state.input.feed(startup);
+        state.input.signalEnd();
 
-        // set the reserved address to nothing; the program will populate this
-        // accordingly as it parses the input stream
-        memory.set(ENTRY_POINT, search_word("donothing"));
-
-        // set the instruction after to return
-        memory.set(ENTRY_POINT+1, search_word("return"));
-
-        while (true){
-            int word_address = memory.get(call_stack.last());
-
-            /* Instructions within immediate word during compile time should be executed,
-             * but the design of the REPL loop compiles the instructions anyway
-             * Check for when the call stack has 2 or more frames, then enforce immediate mode
-             */
-
-            // immediate words and immediate mode will cause the current instruction to be executed
-            if(immediate || memory.get(addressToFlag(word_address)) == 1 || (call_stack.size()>=2))
-            {   // primitive or forth word?
-                if(primitive_words.containsKey(word_address))
-                {
-                    if(DEBUG)
-                        outputln(" r::" + read_string(word_address));
-
-                    // execute primitive
-                        try {
-                    primitive(primitive_words.get(word_address));
-                        } catch (IllegalAccessException e) {
-                        } catch (InvocationTargetException e) {
-                        } catch (ClassNotFoundException e) {
-                        } catch (NoSuchMethodException e) {
-                        } catch (InstantiationException e){
-                        }catch (Exception e) {
-                            outputln("Uncaught Exception " + e.toString());}
-
-                }else{
-                    if(DEBUG)
-                        outputln(" rf::" + read_string(word_address));
-
-                    // execute forth word
-                    call_stack.add(word_address + memory.get(word_address));
-                }
-            }else{
-                if(DEBUG)
-                    outputln(" c::" + read_string(word_address));
-
-                // compile word
-                memory.add(word_address);
-            }
-
-            // check for empty call stack, if so get the next instruction
-            if (call_stack.size() == 0)
-            {
-                String next_word = nextInstruction();
-
-                // end of input stream
-                if(next_word == null) return;
-
-                if(DEBUG)
-                    outputln("\nNext word: " + next_word);
-
-                // do not allow the call stack to be incremented since we just reset the call stack
-                continue;
-            }
-
-            //advance code pointer
-            call_stack.incrementLast();
-        }
-    }
-
-    /**
-     * executes the relevant primitive based on its name
-     */
-    
-    void primitive(String word) throws InvocationTargetException, IllegalAccessException, ClassNotFoundException, NoSuchMethodException, InstantiationException {
-        switch (word) {
-            case "fields": ReflectionMachine.fields(getObject()); break;
-            case "methods" : ReflectionMachine.methods(getObject()); break;
-            case "new" : /*newOperator();*/ break;
-            case "native" : addObject(nativeRoot); break;
-            case "/" : dotOperator(); break;
-            case "donothing" : output(""); break;
-            case "print" : outputln(stack.pop()); break;
-            case "return" : call_stack.remove(call_stack.size() - 1); break;
-            case "word" : stack.add(search_word(input.next())); break;
-            case "stack>mem" : memory.add(stack.pop()); break;
-            case "here" : stack.add(HERE); break;
-            case "[" : immediate = true; break;
-            case "]" : immediate = false; break;
-            case "seestack" : {
-                for (int tok : stack)
-                    output(tok + " ");
-                outputln("<-"); break;
-            }
-            case "seeobj" : {
-                for (Object tok : objects)
-                    output(tok.getClass().getName() + " ");
-                outputln("<-"); break;
-            }
-            case "seemem" : show_mem(); break;
-            case "seerawmem" : outputln(memory); break;
-            case "stringliteral" : write_string(input.next(), memory.size()); break;
-            case "read-string" : outputln(read_string(stack.pop())); break;
-            case "literal" : {
-                call_stack.incrementLast();
-                stack.add(memory.get(call_stack.last())); break;
-            }
-            case "memposition" : stack.add(memory.size()); break;
-            case "create" : {
-                memory.add(HERE);
-                HERE = memory.size(); break;
-            }
-            case "read" : stack.add(memory.get(stack.pop())); break;
-            case "set" : { //value, address <-- top of stack
-                int address = stack.pop();
-                if (address == memory.size()) memory.add(stack.pop());
-                else memory.set(address, stack.pop()); break;
-            }
-            case "+" : stack.add(stack.pop() + stack.pop()); break;
-            case "=" : stack.add(stack.pop() == stack.pop() ? 1 : 0); break;
-            case "-" : stack.add(-stack.pop() + stack.pop()); break;
-            case "*" : stack.add(stack.pop() * stack.pop()); break;
-            case "not" : stack.add(stack.pop() == 0 ? 1 : 0); break;
-            case "and" : stack.add(stack.pop() & stack.pop()); break;
-            case "or" : stack.add(stack.pop() | stack.pop()); break;
-            case "xor" : stack.add(stack.pop() ^ stack.pop()); break;
-            case "swap" : {
-                int p = stack.pop();
-                stack.add(stack.size() - 1, p); break;
-            }
-            case "over" : {
-                stack.add(stack.get(stack.size()-2));
-                break;
-            }
-            case "dup" : stack.add(stack.last()); break;
-            case "drop" : stack.remove(stack.size() - 1); break;
-            case "branch" : //advance pointer by instruction at current pointer position
-                call_stack.set(call_stack.size() - 1, call_stack.last() + memory.get(call_stack.last() + 1));
-                break;
-            case "branch?" : {
-                if (stack.last() == 0) //advance pointer by instruction at current pointer position
-                    call_stack.setLast(call_stack.last() + memory.get(call_stack.last() + 1));
-                else //jump over the offset by 1
-                    call_stack.incrementLast();
-                stack.pop();
-                break;
-            }
-
-            //case "quit" : System.exit(0);
-        }
-    }
-    void addObject(Object o){
-        objects.add(o);
-        stack.add(-objects.size());
-    }
-    Object getObject(){
-        return objects.get( (-stack.pop())-1 );
+        repl();
+        outputln("Startup file found and run");
     }
 
 
-    void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    /*void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
         String classname = input.next();
         Constructor[] constructors;
             try {
@@ -458,105 +307,10 @@ public class Interpreter {
         }
         addObject(constructors[0].newInstance(params));
     }
-
+*/
     // (caller object '' name of attribute -- return value or address of returned object)
     
-    void dotOperator() throws InvocationTargetException, IllegalAccessException {
-        // the calling object
-        Object actor = getObject();
-        // the name of the object's field or method
-        String fieldOrClass = input.next();
 
-        // get actual type of attribute
-        Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
-
-        if (attribute == null) {
-            outputln("field or class " + fieldOrClass + " not found as attribute");
-        }
-
-        // call a method and push return to stack
-        else if(attribute instanceof Method){
-            Method themethod = ((Method)attribute);
-
-            // get parameters
-            Object[] params = new Object[themethod.getParameterTypes().length];
-
-            for(int i=0; i<params.length;i++){
-                int stackElem = stack.pop();
-                // stack has object address or integer?
-                params[i] = (stackElem < 0)? objects.get(-stackElem-1):stackElem;
-            }
-            // invoke
-            Object returnval = themethod.invoke(actor, params);
-
-            // manage return as object or integer
-            if(returnval instanceof Integer){
-                stack.add((int)returnval);
-            } else {// is object
-                objects.add(returnval);
-                stack.add(-objects.size());
-            }
-
-        }
-        // get the value of field
-        else if(attribute instanceof Field) {
-            Field thefield = ((Field)attribute);
-            if (thefield.getType() == int.class || thefield.getType() == Integer.class) {
-                stack.add(thefield.getInt(actor));
-            }
-            else {//is object
-                addObject(thefield.get(actor));
-            }
-        }
-    }
-
-    /**
-     * Take next instruction from input stream and prepare it
-     * for execution by placing the relevant opcode in memory
-     * and reinitializing the call stack
-     */
-    String nextInstruction()
-    {
-        // usually EOF when reading from file
-        if(!input.hasNext()) {
-            outputln("....end of file");
-            return null;
-        }
-
-        // get next token from input
-        String next_Word = input.next();
-        // if it's a number, then deal with the number and skip to next
-            try{
-        int val = Integer.valueOf(next_Word);
-        if(immediate) {
-            stack.add(val);
-        }else{
-            memory.add(search_word("literal"));
-            memory.add(val);
-        }
-        return nextInstruction();
-            }catch(NumberFormatException e){}
-
-        // reset call stack to execute from ENTRY_POINT
-        call_stack.add(ENTRY_POINT);
-
-        // find address of word identified by token
-        int address = search_word(next_Word);
-
-        // does address correspond to existing word?
-        if(search_word(next_Word) == -1)
-        {   // word not found
-            outputln("word " + next_Word + " not found");
-
-            //set empty instruction at ENTRY_POINT
-            memory.set(ENTRY_POINT, search_word("donothing"));
-
-        }else{
-            // word found, set new instruction at ENTRY_POINT
-            memory.set(ENTRY_POINT, address);
-        }
-        return next_Word;
-    }
 
     /**
      * See the other definition of write_string
@@ -673,7 +427,7 @@ public class Interpreter {
     /**
      * Basically an Integer Arraylist but with convenient methods
      */
-    public class Stack extends ArrayList<Integer> {
+    public static class Stack extends ArrayList<Integer> {
         public int pop(){
             return remove(size()-1);
         }
