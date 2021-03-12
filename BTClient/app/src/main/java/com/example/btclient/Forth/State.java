@@ -102,7 +102,7 @@ public class State {
             call_stack.incrementLast();
         }
 
-        State r = origin.threads.remove(id);
+        origin.threads.remove(id);
     }
 
 
@@ -120,7 +120,7 @@ public class State {
 
         // if it's a number, then deal with the number and skip to next
         try{
-            int val = Integer.valueOf(next_Word);
+            int val = Integer.parseInt(next_Word);
             if(immediate.get()) {
                 stack.add(val);
             }else{
@@ -128,7 +128,7 @@ public class State {
                 memory.add(val);
             }
             return;
-        }catch(NumberFormatException e){}
+        }catch(NumberFormatException ignored){}
 
         // it is a token, not a number
         // find address of word identified by token
@@ -244,19 +244,6 @@ public class State {
 
         // convert codepoints to string object
         return new String(str);
-    }*/
-
-   /* *//**
-     * Convert word address to address of its immediate flag
-     *//*
-    public int addressToFlag(int address, List<Integer> memory) {
-        return address + memory.get(address);
-    }
-    *//**
-     * Convert word address to address of its first instruction
-     *//*
-    public int addressToOp(int address, List<Integer> memory) {
-        return address + memory.get(address) + 1;
     }*/
 
 }

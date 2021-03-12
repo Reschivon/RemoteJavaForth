@@ -8,7 +8,7 @@ public class ReflectionMachine {
         Field f = null;
         try {
             f = actor.getClass().getField(name);
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException ignored) {
         }
 
         Method m = null;
@@ -20,8 +20,7 @@ public class ReflectionMachine {
         }
 
         if(m != null) return m;
-        if(f != null) return f;
-        return null;
+        return f;
     }
 
     public static void methods(Object target){

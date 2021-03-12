@@ -5,16 +5,12 @@ import java.util.*;
 
 
 public class Interpreter {
-    public boolean DEBUG = false;
-    private final String setPlainText = "\033[0;0m";
-    private final String setBoldText = "\033[0;1m";
-    private boolean profanity;
 
     // address of first pointer in the linked list that comprises the dictionary
     int HERE = -1;
     // address of initial opcode, or main() for c programmers.
     // will be populated later
-    int ENTRY_POINT = -1;
+    int ENTRY_POINT;
 
     // memory. Double array
     List<Integer> memory = new ArrayList<>();
@@ -139,16 +135,11 @@ public class Interpreter {
         declarePrimitive( "memposition" , state -> state.stack.add(memory.size()));
         declarePrimitive( "here" , state -> state.stack.add(HERE));
         declarePrimitive( "print" , state -> outputln(state.stack.pop(), state.id));
-        declarePrimitive( "return" , state -> {
-            state.call_stack.remove(state.call_stack.size() - 1);
-        }, true);
+        declarePrimitive( "return" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
         declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next())));
         declarePrimitive( "stack>mem" , state -> memory.add(state.stack.pop()));
         declarePrimitive( "[" , state -> state.immediate.set(true), true);
-        declarePrimitive( "]" , state -> {
-            state.immediate.set(false);
-
-        });
+        declarePrimitive( "]" , state -> state.immediate.set(false));
         declarePrimitive( "literal" , state -> {
             state.call_stack.incrementLast();
             state.stack.add(memory.get(state.call_stack.last()));
@@ -172,9 +163,7 @@ public class Interpreter {
             int p = state.stack.pop();
             state.stack.add(state.stack.size() - 1, p);
         });
-        declarePrimitive( "over" , state -> {
-            state.stack.add(state.stack.get(state.stack.size()-2));
-        });
+        declarePrimitive( "over" , state -> state.stack.add(state.stack.get(state.stack.size()-2)));
         declarePrimitive( "dup" , state -> state.stack.add(state.stack.last()));
         declarePrimitive( "drop" , state -> state.stack.remove(state.stack.size() - 1));
 
@@ -193,9 +182,9 @@ public class Interpreter {
                 state.call_stack.incrementLast();
             state.stack.pop();
         });
-        declarePrimitive("interpret", state -> state.interpret());
+        declarePrimitive("interpret", State::interpret);
         declarePrimitive("greet", state -> System.out.println("HELLO HELLO HELLO HELLO"));
-        declarePrimitive("quit", state -> state.stop());
+        declarePrimitive("quit", State::stop);
         declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next())));
         declarePrimitive("threads", state ->{
             ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
@@ -213,9 +202,7 @@ public class Interpreter {
             current_thread = threads.get(state.stack.pop());
             current_thread.input.autoTerminate = false;
         });
-        declarePrimitive("stop-thread", state ->{
-            threads.get(state.stack.pop()).stop();
-        });
+        declarePrimitive("stop-thread", state -> threads.get(state.stack.pop()).stop());
         //TODO make less crude
         declarePrimitive("wait", state ->{
             try {
@@ -347,12 +334,12 @@ public class Interpreter {
             String word_name = read_string(word_address);
             int immediate = memory.get(word_address + memory.get(word_address));
 
+            String setPlainText = "\033[0;0m";
+            String setBoldText = "\033[0;1m";
             output(
                     String.format(
                             "%-25s %d %s ",
-                            setBoldText + word_name +
-                                    setPlainText,
-                            word_address,
+                            setBoldText + word_name + setPlainText, word_address,
                             immediate==1?"immdt":"     "),
                     id);
 

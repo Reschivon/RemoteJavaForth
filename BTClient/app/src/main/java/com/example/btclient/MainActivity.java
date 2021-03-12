@@ -1,14 +1,10 @@
 package com.example.btclient;
- 
-import android.text.method.ScrollingMovementMethod;
-import android.widget.TextView;
-import com.example.btclient.Forth.Interpreter;
-import com.example.bttest.R;
+
 import android.app.Activity;
 import android.os.Bundle;
-import com.example.btclient.Networking.*;
-
-import java.util.Arrays;
+import com.example.btclient.Forth.Interpreter;
+import com.example.btclient.Networking.BluetoothClient;
+import com.example.bttest.R;
 
 public class MainActivity extends Activity {
 
