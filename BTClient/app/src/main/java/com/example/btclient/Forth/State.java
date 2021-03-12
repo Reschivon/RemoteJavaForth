@@ -88,7 +88,7 @@ public class State {
                     primitives.get(word_address).accept(this);
 
                 }catch (Exception e) {
-                    origin.outputln("Uncaught Exception ");
+                    origin.outputln("Uncaught Exception ", id);
                     e.printStackTrace();
                 }
 
@@ -109,7 +109,7 @@ public class State {
     public void interpret() {
         // usually EOF when reading from file
         if(!input.hasNext()) {
-            origin.outputln("....end of file");
+            origin.outputln("....end of file", id);
             repl_running = false;
             return;
         }
@@ -137,7 +137,7 @@ public class State {
         // does address correspond to existing word?
         if(origin.search_word(next_Word) == -1) {
             // word not found
-            origin.outputln("word " + next_Word + " not found");
+            origin.outputln("word " + next_Word + " not found", id);
         }else{
             // word found
             // is compiled or executed?
@@ -178,7 +178,7 @@ public class State {
         Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
 
         if (attribute == null) {
-            origin.outputln("field or class " + fieldOrClass + " not found as attribute");
+            origin.outputln("field or class " + fieldOrClass + " not found as attribute", id);
         }
 
         // call a method and push return to stack

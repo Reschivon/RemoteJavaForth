@@ -58,9 +58,9 @@ public class Interpreter {
         State init_thread = threads.get(init_thread_id);
 
         init_thread.input.feed(startup);
-        init_thread.input.signalEnd();
+        init_thread.input.autoTerminate = true;
 
-        outputln("Startup file found and run");
+        outputln("Startup file found and run", init_thread.id);
     }
 
     public int new_thread(String action){
@@ -97,16 +97,20 @@ public class Interpreter {
         outputListener = o;
     }
 
-    void output(Object s){
-        outputListener.outputInvoked(s.toString());
+    public final boolean SHOW_OUTPUT_FROM_OTHER_THREADS = false;
+    void output(Object s, int id){
+        if(current_thread != null && id != current_thread.id) {
+            if(SHOW_OUTPUT_FROM_OTHER_THREADS)
+                outputListener.outputInvoked("Thread " + id + "> " + s.toString());
+        } else {
+            outputListener.outputInvoked(s.toString());
+        }
     }
-    void outputln(Object s){
-        output(s.toString() + "\n");
+    void outputln(Object s, int id){
+        output(s.toString() + "\n", id);
     }
-
 
     {
-
         declarePrimitive( "new" , state -> {}); /*newOperator();*/
         declarePrimitive( "/" , state -> {
             try {
@@ -121,20 +125,20 @@ public class Interpreter {
         declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject()));
         declarePrimitive( "seeobj" , state -> {
             for (Object tok : state.objects)
-                output(tok.getClass().getName() + " ");
-            outputln("<-");
+                output(tok.getClass().getName() + " ", state.id);
+            outputln("<-", state.id);
         });
         declarePrimitive( "native" , state -> state.addObject(nativeRoot));
         declarePrimitive( "seestack" , state -> {
             for (int tok : state.stack)
-                output(tok + " ");
-            outputln("<-");
+                output(tok + " ", state.id);
+            outputln("<-", state.id);
         });
-        declarePrimitive( "seemem" , state -> show_mem());
-        declarePrimitive( "seerawmem" , state -> outputln(memory));
+        declarePrimitive( "seemem" , state -> show_mem(state.id));
+        declarePrimitive( "seerawmem" , state -> outputln(memory, state.id));
         declarePrimitive( "memposition" , state -> state.stack.add(memory.size()));
         declarePrimitive( "here" , state -> state.stack.add(HERE));
-        declarePrimitive( "print" , state -> outputln(state.stack.pop()));
+        declarePrimitive( "print" , state -> outputln(state.stack.pop(), state.id));
         declarePrimitive( "return" , state -> {
             state.call_stack.remove(state.call_stack.size() - 1);
         }, true);
@@ -150,7 +154,7 @@ public class Interpreter {
             state.stack.add(memory.get(state.call_stack.last()));
         }, true);
         declarePrimitive( "read" , state -> state.stack.add(memory.get(state.stack.pop())));
-        declarePrimitive( "donothing" , state -> output(""));
+        declarePrimitive( "donothing" , state -> output("", state.id));
         declarePrimitive( "set" , state -> { //value, address <-- top of stack
             int address = state.stack.pop();
             if (address == memory.size()) memory.add(state.stack.pop());
@@ -175,7 +179,7 @@ public class Interpreter {
         declarePrimitive( "drop" , state -> state.stack.remove(state.stack.size() - 1));
 
         declarePrimitive( "stringliteral" , state -> write_string(state.input.next(), memory.size()));
-        declarePrimitive( "read-string" , state -> outputln(read_string(state.stack.pop())));
+        declarePrimitive( "read-string" , state -> outputln(read_string(state.stack.pop()), state.id));
         declarePrimitive( "create" , state -> {
             memory.add(HERE);
             HERE = memory.size();
@@ -197,11 +201,17 @@ public class Interpreter {
             ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
             Collections.sort(sortedKeys);
             for(int i : sortedKeys) {
-                System.out.println(i + ": " + threads.get(i).name);
+                System.out.println(i + ": " + threads.get(i).name
+                        + (threads.get(i).id == current_thread.id?" <-":""));
             }
         });
         declarePrimitive("switch-thread", state ->{
+            // so the current user thread will never end
+            // while the user is using it
+            if(!current_thread.name.equals("default"))
+                current_thread.input.autoTerminate = true;
             current_thread = threads.get(state.stack.pop());
+            current_thread.input.autoTerminate = false;
         });
         declarePrimitive("stop-thread", state ->{
             threads.get(state.stack.pop()).stop();
@@ -215,7 +225,7 @@ public class Interpreter {
             }
         });
 
-                create(":");
+        create(":");
         memory.add(search_word("create"));
         memory.add(search_word("stringliteral"));
         memory.add(search_word("literal"));
@@ -297,8 +307,8 @@ public class Interpreter {
      * @return String in java object format
      */
     String read_string(int address) {
-        if(memory.get(address)-1<0)
-            outputln("string length invalid: "+(memory.get(address)-1));
+        //if(memory.get(address)-1<0)
+            //outputln("string length invalid: "+(memory.get(address)-1));
 
         // read length of string
         byte[] str = new byte[memory.get(address)-1];
@@ -319,7 +329,7 @@ public class Interpreter {
      * Ignores other non-word data, like variable values
      * Should only be used for debugging; assumptions made
      */
-    void show_mem() {   //make array of word addresses
+    void show_mem(int id) {   //make array of word addresses
         List<Integer> pointers = new ArrayList<>();
 
         // read and store word addresses
@@ -338,7 +348,13 @@ public class Interpreter {
             int immediate = memory.get(word_address + memory.get(word_address));
 
             output(
-                    String.format("%-25s %d %s ", setBoldText + word_name + setPlainText, word_address, immediate==1?"immdt":"     "));
+                    String.format(
+                            "%-25s %d %s ",
+                            setBoldText + word_name +
+                                    setPlainText,
+                            word_address,
+                            immediate==1?"immdt":"     "),
+                    id);
 
             // first opcode of the word
             int instruction_address = addressToOp(word_address);
@@ -357,19 +373,19 @@ public class Interpreter {
                 if(name.equals("return"))
                     break;
 
-                output(name + " ");
+                output(name + " ", id);
 
                 // special condition if next element is read as literal
                 if(name.equals("literal") || name.equals("branch") || name.equals("branch?"))
                 {
                     j++;
-                    output(memory.get(j) + " ");
+                    output(memory.get(j) + " ", id);
                 }
             }
-            outputln("");
+            outputln("", id);
         }
 
-        outputln("");
+        outputln("", id);
     }
 
     /**
