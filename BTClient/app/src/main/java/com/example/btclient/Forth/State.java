@@ -35,7 +35,9 @@ public class State {
         primitives = origin.primitives;
     }
 
+    boolean repl_running = false;
     void repl() {
+        repl_running = true;
         //DEBUG = true;
 
         /* All instructions must be stored in memory, even the
@@ -46,80 +48,72 @@ public class State {
          * after the instruction there executes
          */
 
-        while (true){
+//       for(int i=0;i<30;i++){
+        while (repl_running) {
             boolean DEBUG = false;
             int word_address = memory.get(call_stack.last());
 
-            /* Instructions within immediate word during compile time should be executed,
-             * but the design of the REPL loop compiles the instructions anyway
-             * Check for when the call stack has 2 or more frames, then enforce immediate mode
-             */
+             /* Instructions within immediate word during compile time should be executed,
+              * but the design of the REPL loop compiles the instructions anyway
+              * Check for when the call stack has 2 or more frames, then enforce immediate mode
+              */
+             // immediate words and immediate mode will cause the current instruction to be executed
 
-            // immediate words and immediate mode will cause the current instruction to be executed
-            if(immediate.get() || memory.get(origin.addressToFlag(word_address)) == 1 || (call_stack.size()>=2))
-            {   // primitive or forth word?
-                if(primitives.containsKey(word_address))
-                {
-                    if(DEBUG)
-                        origin.outputln(" r::" + origin.read_string(word_address));
 
-                    // execute primitive
-                    try {
-                        primitives.get(word_address).accept(this);
-                    }catch (Exception e) {
-                        origin.outputln("Uncaught Exception " + e.toString());}
+            // primitive or forth word?
+            if(primitives.containsKey(word_address)) {
+                // execute primitive
+                try {
+                    //System.out.println("exec " + origin.primitive_names.get(word_address));
+                    // immediate and primitive
+                    primitives.get(word_address).accept(this);
 
-                }else{
-                    if(DEBUG)
-                        origin.outputln(" rf::" + origin.read_string(word_address));
-
-                    // execute forth word
-                    call_stack.add(word_address + memory.get(word_address));
+                }catch (Exception e) {
+                    origin.outputln("Uncaught Exception " + e.toString());
+                    System.exit(69);
                 }
-            }else{
-                if(DEBUG)
-                    origin.outputln(" c::" + origin.read_string(word_address));
 
-                // compile word
-                memory.add(word_address);
+            }else{
+                // execute forth word
+                //System.out.println("exec forth" + origin.read_string(word_address));
+                call_stack.add(word_address + memory.get(word_address));
             }
 
-            //TODO forgo this memory wrangling, just add the new xt to the call stack
+
+            /*//TODO forgo this memory wrangling, just add the new xt to the call stack
             // check for empty call stack, if so get the next instruction
             if (call_stack.size() == 0)
             {
-                String next_word = nextInstruction();
+                boolean next_word = input.hasNext();
 
                 // end of input stream
-                if(next_word == null) return;
+                if(!next_word) return;
 
                 if(DEBUG)
                     origin.outputln("\nNext word: " + next_word);
 
                 // do not allow the call stack to be incremented since we just reset the call stack
                 continue;
-            }
+            }*/
 
             //advance code pointer
             call_stack.incrementLast();
         }
     }
 
-    /**
-     * Take next instruction from input stream and prepare it
-     * for execution by placing the relevant opcode in memory
-     * and reinitializing the call stack
-     */
-    String nextInstruction()
-    {
+
+    public void interpret() {
         // usually EOF when reading from file
         if(!input.hasNext()) {
             origin.outputln("....end of file");
-            return null;
+            repl_running = false;
+            return;
         }
 
         // get next token from input
         String next_Word = input.next();
+
+
         // if it's a number, then deal with the number and skip to next
         try{
             int val = Integer.valueOf(next_Word);
@@ -129,30 +123,47 @@ public class State {
                 memory.add(origin.search_word("literal"));
                 memory.add(val);
             }
-            return nextInstruction();
+            return;
         }catch(NumberFormatException e){}
 
-        int ENTRY_POINT = origin.ENTRY_POINT;
-
-        // reset call stack to execute from ENTRY_POINT
-        call_stack.add(ENTRY_POINT);
-
+        // it is a token, not a number
         // find address of word identified by token
         int address = origin.search_word(next_Word);
 
         // does address correspond to existing word?
-        if(origin.search_word(next_Word) == -1)
-        {   // word not found
+        if(origin.search_word(next_Word) == -1) {
+            // word not found
             origin.outputln("word " + next_Word + " not found");
-
-            //set empty instruction at ENTRY_POINT
-            memory.set(ENTRY_POINT, origin.search_word("donothing"));
-
         }else{
-            // word found, set new instruction at ENTRY_POINT
-            memory.set(ENTRY_POINT, address);
+            // word found
+            // is compiled or executed?
+            boolean a = false,b = false;
+
+            if(immediate.get()) {
+                a = true;
+                //System.out.println("\timmediate state");
+            }
+            if(memory.get(origin.addressToFlag(address)) == 1) {
+                b = true;
+                //System.out.println("\tword is flagged immediate");
+            }
+
+                // execute
+            if(a || b){
+                //System.out.println("\tinterpret places " + origin.read_string(address) + " on stack");
+                if(primitives.containsKey(address)){
+                    // TODO special case trollol
+                    //System.out.println("AAAAAAAAAAA");
+                    primitives.get(address).accept(this);
+                }else {
+                    call_stack.add(address + memory.get(address));
+                }
+            }else{
+                // compile word
+                //System.out.println("\tcompile " + origin.primitive_names.get(address));
+                memory.add(address);
+            }
         }
-        return next_Word;
     }
 
     void dotOperator() throws InvocationTargetException, IllegalAccessException {
@@ -213,6 +224,7 @@ public class State {
     Object getObject(){
         return objects.get( (-stack.pop())-1 );
     }
+
 
     /*String read_string(int address, List<Integer> memory)
     {

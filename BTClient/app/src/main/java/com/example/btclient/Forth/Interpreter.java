@@ -29,7 +29,7 @@ public class Interpreter {
     // link up names of primitives to their java code
     HashMap<Integer, Consumer<State>> primitives = new HashMap<>();
 
-
+    HashMap<Integer, String> primitive_names = new HashMap<>();
     // output
     public interface outputListener{
         void outputInvoked(String message);
@@ -107,6 +107,7 @@ public class Interpreter {
         // register word as primitive
         // allow the relevant java code to be found
         primitives.put(HERE, r);
+        primitive_names.put(HERE, name);
 
         if(immediate)
             memory.set(addressToFlag(HERE), 1);
@@ -160,11 +161,16 @@ public class Interpreter {
         declarePrimitive( "memposition" , state -> state.stack.add(memory.size()));
         declarePrimitive( "here" , state -> state.stack.add(HERE));
         declarePrimitive( "print" , state -> outputln(state.stack.pop()));
-        declarePrimitive( "return" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
+        declarePrimitive( "return" , state -> {
+            state.call_stack.remove(state.call_stack.size() - 1);
+        }, true);
         declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next())));
         declarePrimitive( "stack>mem" , state -> memory.add(state.stack.pop()));
         declarePrimitive( "[" , state -> state.immediate.set(true), true);
-        declarePrimitive( "]" , state -> state.immediate.set(false));
+        declarePrimitive( "]" , state -> {
+            state.immediate.set(false);
+
+        });
         declarePrimitive( "literal" , state -> {
             state.call_stack.incrementLast();
             state.stack.add(memory.get(state.call_stack.last()));
@@ -209,8 +215,13 @@ public class Interpreter {
                 state.call_stack.incrementLast();
             state.stack.pop();
         });
+        declarePrimitive("interpret", state ->
+                state.interpret()
+        );declarePrimitive("greet", state ->
+            System.out.println("HELLO HELLO HELLO HELLO")
+        );
 
-        create(":");
+                create(":");
         memory.add(search_word("create"));
         memory.add(search_word("stringliteral"));
         memory.add(search_word("literal"));
@@ -228,20 +239,21 @@ public class Interpreter {
         set_immediate();
 
         ENTRY_POINT = memory.size();
-        memory.add(search_word("donothing"));
-        memory.add(search_word("return"));
+        memory.add(search_word("interpret"));
+        memory.add(search_word("branch"));
+        memory.add(-2);
     }
 
     public void repl(){
         // set the reserved address to nothing; the program will populate this
         // accordingly as it parses the input stream
-        memory.set(ENTRY_POINT, search_word("donothing"));
+        //memory.set(ENTRY_POINT, search_word("donothing"));
 
         // set the instruction after to return
-        memory.set(ENTRY_POINT+1, search_word("return"));
+        //memory.set(ENTRY_POINT+1, search_word("return"));
 
         // set call stack to execute the reserved instruction address
-        state.call_stack.add(ENTRY_POINT+1);
+        state.call_stack.add(ENTRY_POINT);
         state.repl();
     }
 
@@ -450,163 +462,176 @@ public class Interpreter {
         String next();
     }
 
-    String startup =
-            "\n" +
-                    ": immediate\n" +
-                    "    here read\n" +
-                    "    here +\n" +
-                    "    1 swap\n" +
-                    "    set\n" +
-                    ";\n" +
-                    "\n" +
-                    ": [compile]\n" +
-                    "    word stack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": words seemem ;\n" +
-                    "\n" +
-                    ": [word] word ; immediate\n" +
-                    "\n" +
-                    ": ll [word] literal [word] literal stack>mem stack>mem ; immediate\n" +
-                    "\n" +
-                    ": token>stack ll stack>mem word stack>mem ; immediate\n" +
-                    "\n" +
-                    ": postpone\n" +
-                    "    [compile] token>stack\n" +
-                    "    token>stack stack>mem stack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": if\n" +
-                    "    token>stack branch? stack>mem\n" +
-                    "    memposition\n" +
-                    "    0 stack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": unless\n" +
-                    "    postpone not\n" +
-                    "    [compile] if\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": then\n" +
-                    "    dup\n" +
-                    "    memposition swap -\n" +
-                    "    swap set\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": else\n" +
-                    "\ttoken>stack branch stack>mem\n" +
-                    "\tmemposition\n" +
-                    "\t0 stack>mem\n" +
-                    "\tswap\n" +
-                    "\tdup\n" +
-                    "\tmemposition swap -\n" +
-                    "\tswap set\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": begin\n" +
-                    "\tmemposition\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": until\n" +
-                    "\ttoken>stack branch? stack>mem\n" +
-                    "\tmemposition -\n" +
-                    "\tstack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": again\n" +
-                    "\ttoken>stack branch stack>mem\n" +
-                    "\tmemposition -\n" +
-                    "\tstack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": while\n" +
-                    "\ttoken>stack branch? stack>mem\n" +
-                    "\tmemposition\n" +
-                    "\t0 stack>mem\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": repeat\n" +
-                    "\ttoken>stack branch stack>mem\n" +
-                    "\tswap\n" +
-                    "\tmemposition - stack>mem\n" +
-                    "\tdup\n" +
-                    "\tmemposition swap -\n" +
-                    "\tswap set\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    ": ) ;\n" +
-                    "\n" +
-                    ": (\n" +
-                    "    [compile] literal [word] ) [ stack>mem ]\n" +
-                    "    begin\n" +
-                    "        dup word =\n" +
-                    "    until\n" +
-                    "    drop\n" +
-                    "; immediate\n" +
-                    "\n" +
-                    "( TODO: functionality to nest parentheses )\n" +
-                    "\n" +
-                    ": constant ( initial_value '' constant_name -- )\n" +
-                    "    create              ( set up a new word )\n" +
-                    "    stringliteral\n" +
-                    "    0 stack>mem\n" +
-                    "\n" +
-                    "    postpone literal    ( add literal instruction to variable definition )\n" +
-                    "    stack>mem           ( append initial value to memory )\n" +
-                    "    postpone return     ( add return instruction to constant definition )\n" +
-                    ";\n" +
-                    "\n" +
-                    ": = constant ; ( just thought it made sense )\n" +
-                    "\n" +
-                    ": variable ( initial_value '' variable_name -- )\n" +
-                    "    memposition         ( push memory address to stack )\n" +
-                    "    swap\n" +
-                    "    memposition set     ( append top of stack to memory )\n" +
-                    "\n" +
-                    "    create              ( set up a new word )\n" +
-                    "    stringliteral\n" +
-                    "    0 stack>mem\n" +
-                    "\n" +
-                    "    postpone literal    ( add literal instruction to variable definition )\n" +
-                    "    stack>mem           ( append pointer to memory )\n" +
-                    "    postpone return     ( add return instruction to variable definition )\n" +
-                    ";\n" +
-                    "\n" +
-                    ": iftest if 22 print else 11 print then ;\n" +
-                    "\n" +
-                    ": whiletest begin 11 print 1 until ;\n" +
-                    "\n" +
-                    ": unlesstest unless 11 print else 22 print then ;\n" +
-                    "\n" +
-                    "0 unlesstest\n" +
-                    "1 unlesstest\n" +
-                    "\n" +
-                    "0 iftest\n" +
-                    "1 iftest\n" +
-                    "\n" +
-                    "whiletest\n" +
-                    "\n" +
-                    ": trojan-print postpone print ; immediate\n" +
-                    "\n" +
-                    ": troy 22 trojan-print 11 print ;\n" +
-                    "\n" +
-                    "troy\n" +
-                    "\n" +
-                    "22 print ( 55 print ) 11 print\n" +
-                    "\n" +
-                    "( commentation! ) ( exciting! )\n" +
-                    "\n" +
-                    "( cannot nest parentheses )\n" +
-                    "\n" +
-                    "( You can enable aggressive error messages with the word 'profanity' )\n" +
-                    "\n" +
-                    "22 constant burgers\n" +
-                    "burgers print\n" +
-                    "\n" +
-                    "11 variable pies\n" +
-                    "pies read print\n" +
-                    "\n" +
-                    "22 pies set\n" +
-                    "pies read print\n" +
-                    "\n";
+    String startup = "";
+    void string_processor(String... s){
+        StringBuilder cum = new StringBuilder();
+        for(String i : s){
+            cum.append(i);
+            cum.append(" ");
+        }
+        startup = cum.toString();
+    }
+
+
+    {
+        string_processor(
+                ": immediate\n",
+                "        	here read\n",
+                "        	here +",
+                "        	1 swap",
+                "        	set",
+                ";",
+
+                ": [compile]",
+                "        	word stack>mem",
+                "; immediate",
+
+                ": words seemem ;",
+
+                ": [word] word ; immediate",
+
+                ": ll [word] literal [word] literal stack>mem stack>mem ; immediate",
+
+                ": token>stack ll stack>mem word stack>mem ; immediate",
+
+                ": postpone",
+                "        	[compile] token>stack",
+                "        	token>stack stack>mem stack>mem",
+                "; immediate",
+
+                ": if",
+                "        	token>stack branch? stack>mem",
+                "        	memposition",
+                "        	0 stack>mem",
+                "; immediate",
+
+                ": unless",
+                "        	postpone not",
+                "        	[compile] if",
+                "; immediate",
+
+                ": then",
+                "        	dup",
+                "        	memposition swap -",
+                "        	swap set",
+                "; immediate",
+
+                ": else",
+                "		token>stack branch stack>mem",
+                "		memposition",
+                "		0 stack>mem",
+                "		swap",
+                "		dup",
+                "		memposition swap -",
+                "		swap set",
+                "; immediate",
+
+                ": begin",
+                "		memposition",
+                "; immediate",
+
+                ": until",
+                "		token>stack branch? stack>mem",
+                "		memposition -",
+                "		stack>mem",
+                "; immediate",
+
+                ": again",
+                "		token>stack branch stack>mem",
+                "		memposition -",
+                "		stack>mem",
+                "; immediate",
+
+                ": while",
+                "		token>stack branch? stack>mem",
+                "		memposition",
+                "		0 stack>mem",
+                "; immediate",
+
+                ": repeat",
+                "		token>stack branch stack>mem",
+                "		swap",
+                "		memposition - stack>mem",
+                "		dup",
+                "		memposition swap -",
+                "		swap set",
+                "; immediate",
+
+                ": ) ;",
+
+                ": (",
+                "        	[compile] literal [word] ) [ stack>mem ]",
+                "        	begin",
+                "        	    dup word =",
+                "        	until",
+                "        	drop",
+                "; immediate",
+
+
+                "( TODO: functionality to nest parentheses )",
+
+                ": constant ( initial_value '' constant_name -- )",
+                "        	create              ( set up a new word )",
+                "        	stringliteral",
+                "        	0 stack>mem",
+
+                "        	postpone literal    ( add literal instruction to variable definition )",
+                "        	stack>mem           ( append initial value to memory )",
+                "        	postpone return     ( add return instruction to constant definition )",
+                ";",
+
+                ": = constant ; ( just thought it made sense )",
+
+                ": variable ( initial_value '' variable_name -- )",
+                "        	memposition         ( push memory address to stack )",
+                "        	swap",
+                "        	memposition set     ( append top of stack to memory )",
+
+                "        	create              ( set up a new word )",
+                "        	stringliteral",
+                "        	0 stack>mem",
+
+                "        	postpone literal    ( add literal instruction to variable definition )",
+                "        	stack>mem           ( append pointer to memory )",
+                "        	postpone return     ( add return instruction to variable definition )",
+                ";",
+
+                ": iftest if 22 print else 11 print then ;",
+
+                ": whiletest begin 11 print 1 until ;",
+
+                ": unlesstest unless 11 print else 22 print then ;",
+
+                "0 unlesstest",
+                "1 unlesstest",
+
+                "0 iftest",
+                "1 iftest",
+
+                "whiletest",
+
+                ": trojan-print postpone print ; immediate",
+
+                ": troy 22 trojan-print 11 print ;",
+
+                "troy",
+
+                "22 print ( 55 print ) 11 print",
+
+                "( commentation! ) ( exciting! )",
+
+                "( cannot nest parentheses )",
+
+                "( You can enable aggressive error messages with the word 'profanity' )",
+
+                "22 constant burgers",
+                "burgers print",
+
+                "11 variable pies",
+                "pies read print",
+
+                "22 pies set",
+                "pies read print"
+        );
+    }
 }
