@@ -24,15 +24,11 @@ public class MainActivity extends Activity {
             message -> bluetoothClient.send(message),
             new qwer());
 
-    /*bluetoothClient = new BluetoothClient(
+    bluetoothClient = new BluetoothClient(
             this, "C8:21:58:6A:A3:A0",
             "00001101-0000-1000-8000-00805F9B34FB",
             findViewById(R.id.out),
-            response -> {
-              //System.out.println("added string " + response + " to buffer " + interpreter.nexttoks);
-              interpreter.nexttoks.addAll(
-                      Arrays.asList(response.split(" ")));
-            });*/
+            interpreter::feed);
   }
 
   @Override
@@ -40,7 +36,8 @@ public class MainActivity extends Activity {
     super.onResume();
     bluetoothClient.startHostSession();
 
-    new Thread(() -> interpreter.begin()).start();
+    int def = interpreter.new_thread(null); //default thread
+    interpreter.set_user_thread(def);
 
   }
 

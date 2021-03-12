@@ -1,10 +1,7 @@
 package com.example.btclient.Forth;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 
 public class Interpreter {
@@ -18,7 +15,6 @@ public class Interpreter {
     // address of initial opcode, or main() for c programmers.
     // will be populated later
     int ENTRY_POINT = -1;
-    State state;
 
     // memory. Double array
     List<Integer> memory = new ArrayList<>();
@@ -30,6 +26,37 @@ public class Interpreter {
     HashMap<Integer, Consumer<State>> primitives = new HashMap<>();
 
     HashMap<Integer, String> primitive_names = new HashMap<>();
+
+    private State current_thread = null;
+    private int thread_counter = 0;
+    HashMap<Integer, State> threads = new HashMap<>();
+
+    public int new_thread(String action){
+        State s;
+        int id = thread_counter;
+
+        //default thread
+        if(action == null){
+            s = new State(this, "default", id);
+            new Thread(() -> s.repl(-1)).start();
+        }else{
+            s = new State(this, action, id);
+            s.input.autoTerminate = true;
+            new Thread(() -> s.repl(search_word(action))).start();
+        }
+        threads.put(thread_counter, s);
+
+        return thread_counter++;
+    }
+
+    public void set_user_thread(int num){
+        current_thread = threads.get(num);
+    }
+
+    public void feed(String s){
+        current_thread.input.feed(s);
+    }
+
     // output
     public interface outputListener{
         void outputInvoked(String message);
@@ -46,92 +73,8 @@ public class Interpreter {
         output(s.toString() + "\n");
     }
 
-    /**
-     * Interpreter use only, do not confuse with Forth word
-     * Appends a new a word definition stub to memory array (no instructions)
-     */
-    void create(String name){
-        // add link in linked list to prev word
-        memory.add(HERE);
-        // update head of linked list
-        HERE = memory.size();
-        // add name
-        write_string(name, memory.size());
-        // add immediate flag (default non immediate)
-        memory.add(0);
-    }
-
-    /**
-     * Interpreter use only. Sets the most recently defined word as immediate
-     */
-    void set_immediate(){
-        memory.set(HERE + memory.get(HERE), 1);
-    }
-
-    /**
-     * Interpreter use only. Searches through dictionary
-     * for a word that matches the name in the string
-     * @return Address of word, if found. -1 if not found
-     */
-    int search_word(String name) {
-        int here = HERE;
-        while(here != -1)
-        {
-            String word_name = read_string(here);
-            if(name.equals(word_name))
-                return here;
-            //move 'here' back
-            here = memory.get(here-1);
-        }
-        return -1;
-    }
-
-
-
-    /**
-     * See other definition of declare primitive. Defaults
-     * to non-immediate
-     */
-    void declarePrimitive(String name, Consumer<State> r) {
-        declarePrimitive(name, r, false);
-    }
-
-    /**
-     * Word only for interpreter use. Creates primitive word definition stubs in memory
-     * @param name name of word
-     * @param immediate Flags for immediate word
-     */
-    void declarePrimitive(String name, Consumer<State> r, boolean immediate) {   // add link in linked list
-        create(name);
-
-        // register word as primitive
-        // allow the relevant java code to be found
-        primitives.put(HERE, r);
-        primitive_names.put(HERE, name);
-
-        if(immediate)
-            memory.set(addressToFlag(HERE), 1);
-
-    }
-    /**
-     * Convert word address to address of its immediate flag
-     */
-    public int addressToFlag(int address) {
-        return address + memory.get(address);
-    }
-    /**
-     * Convert word address to address of its first instruction
-     */
-    public int addressToOp(int address) {
-        return address + memory.get(address) + 1;
-    }
 
     {
-        /*MutableBoolean immediate = state.immediate;
-        List<Object> objects = state.objects;
-        Stack stack = state.stack;
-        Stack call_stack = state.call_stack;*/
-
 
         declarePrimitive( "new" , state -> {}); /*newOperator();*/
         declarePrimitive( "/" , state -> {
@@ -219,7 +162,24 @@ public class Interpreter {
                 state.interpret()
         );declarePrimitive("greet", state ->
             System.out.println("HELLO HELLO HELLO HELLO")
+        );declarePrimitive("quit", state ->
+            state.stop()
         );
+        declarePrimitive("async", state ->{
+            state.stack.add(new_thread(state.input.next()));
+        });
+
+        declarePrimitive("threads", state ->{
+            ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
+            Collections.sort(sortedKeys);
+            for(int i : sortedKeys) {
+                System.out.println(i + ": " + threads.get(i).name);
+            }
+        });
+
+        declarePrimitive("switch-thread", state ->{
+            current_thread = threads.get(state.stack.pop());
+        });
 
                 create(":");
         memory.add(search_word("create"));
@@ -244,19 +204,6 @@ public class Interpreter {
         memory.add(-2);
     }
 
-    public void repl(){
-        // set the reserved address to nothing; the program will populate this
-        // accordingly as it parses the input stream
-        //memory.set(ENTRY_POINT, search_word("donothing"));
-
-        // set the instruction after to return
-        //memory.set(ENTRY_POINT+1, search_word("return"));
-
-        // set call stack to execute the reserved instruction address
-        state.call_stack.add(ENTRY_POINT);
-        state.repl();
-    }
-
     public static void main(String[] args) {
         Interpreter interpreter = new Interpreter(
                 System.out::print,
@@ -267,32 +214,25 @@ public class Interpreter {
             while(true) {
                 //TODO figure out why these cant be one line
                 String feed = scanner.nextLine();
-                interpreter.state.input.feed(feed);
+                interpreter.feed(feed);
             }
         }).start();
-        new Thread(() -> interpreter.begin()).start();
 
-    }
-
-    public void begin() {
-        // run from terminal input
-        state.input = new BufferedIO.FeedableBufferedIO();
-        outputln("Commence Interactive Remote REPL");
-        repl();
-        output("REPL is over");
+        int def = interpreter.new_thread(null); //default thread
+        interpreter.set_user_thread(def);
     }
 
     public Interpreter(outputListener outputL, Object root){
         setOutputListener(outputL);
         setNativeRoot(root);
 
-        state = new State(this);
+        // initialization thread
+        int init_thread_id = new_thread(null);
+        State init_thread = threads.get(init_thread_id);
 
-        state.input = new BufferedIO.FeedableBufferedIO();
-        state.input.feed(startup);
-        state.input.signalEnd();
+        init_thread.input.feed(startup);
+        init_thread.input.signalEnd();
 
-        repl();
         outputln("Startup file found and run");
     }
 
@@ -340,8 +280,7 @@ public class Interpreter {
      * @param address The index of the first integer written
      * @param list The array to be written to
      */
-    void write_string(String name, int address, List<Integer> list)
-    {
+    void write_string(String name, int address, List<Integer> list) {
         byte[] b = name.getBytes();
         // length integer
         list.add(address, b.length+1);
@@ -358,8 +297,7 @@ public class Interpreter {
      * @param address address in the mem array of first integer
      * @return String in java object format
      */
-    String read_string(int address)
-    {
+    String read_string(int address) {
         if(memory.get(address)-1<0)
             outputln("string length invalid: "+(memory.get(address)-1));
 
@@ -382,8 +320,7 @@ public class Interpreter {
      * Ignores other non-word data, like variable values
      * Should only be used for debugging; assumptions made
      */
-    void show_mem()
-    {   //make array of word addresses
+    void show_mem() {   //make array of word addresses
         List<Integer> pointers = new ArrayList<>();
 
         // read and store word addresses
@@ -437,6 +374,83 @@ public class Interpreter {
     }
 
     /**
+     * Interpreter use only, do not confuse with Forth word
+     * Appends a new a word definition stub to memory array (no instructions)
+     */
+    void create(String name){
+        // add link in linked list to prev word
+        memory.add(HERE);
+        // update head of linked list
+        HERE = memory.size();
+        // add name
+        write_string(name, memory.size());
+        // add immediate flag (default non immediate)
+        memory.add(0);
+    }
+
+    /**
+     * Interpreter use only. Sets the most recently defined word as immediate
+     */
+    void set_immediate(){
+        memory.set(HERE + memory.get(HERE), 1);
+    }
+
+    /**
+     * Interpreter use only. Searches through dictionary
+     * for a word that matches the name in the string
+     * @return Address of word, if found. -1 if not found
+     */
+    int search_word(String name) {
+        int here = HERE;
+        while(here != -1)
+        {
+            String word_name = read_string(here);
+            if(name.equals(word_name))
+                return here;
+            //move 'here' back
+            here = memory.get(here-1);
+        }
+        return -1;
+    }
+
+    /**
+     * See other definition of declare primitive. Defaults
+     * to non-immediate
+     */
+    void declarePrimitive(String name, Consumer<State> r) {
+        declarePrimitive(name, r, false);
+    }
+
+    /**
+     * Word only for interpreter use. Creates primitive word definition stubs in memory
+     * @param name name of word
+     * @param immediate Flags for immediate word
+     */
+    void declarePrimitive(String name, Consumer<State> r, boolean immediate) {   // add link in linked list
+        create(name);
+
+        // register word as primitive
+        // allow the relevant java code to be found
+        primitives.put(HERE, r);
+        primitive_names.put(HERE, name);
+
+        if(immediate)
+            memory.set(addressToFlag(HERE), 1);
+
+    }
+    /**
+     * Convert word address to address of its immediate flag
+     */
+    public int addressToFlag(int address) {
+        return address + memory.get(address);
+    }
+    /**
+     * Convert word address to address of its first instruction
+     */
+    public int addressToOp(int address) {
+        return address + memory.get(address) + 1;
+    }
+    /**
      * Basically an Integer Arraylist but with convenient methods
      */
     public static class Stack extends ArrayList<Integer> {
@@ -457,10 +471,6 @@ public class Interpreter {
         }
     }
 
-    interface scan{
-        boolean hasNext();
-        String next();
-    }
 
     String startup = "";
     void string_processor(String... s){
@@ -472,9 +482,8 @@ public class Interpreter {
         startup = cum.toString();
     }
 
-
     {
-        string_processor(
+        string_processor("",
                 ": immediate\n",
                 "        	here read\n",
                 "        	here +",
@@ -631,7 +640,12 @@ public class Interpreter {
                 "pies read print",
 
                 "22 pies set",
-                "pies read print"
+                "pies read print",
+
+                ": go begin 42 print again ;"
+
+//                "async greet",
+//                "threads"
         );
     }
 }

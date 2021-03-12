@@ -23,23 +23,50 @@ public class State {
     Interpreter.Stack call_stack = new Interpreter.Stack();
 
     // input
-    public BufferedIO input;
+    public FeedableBufferedIO input;
 
+    String name;
+    int id;
 
     List<Integer> memory;
     HashMap<Integer, Consumer<State>> primitives;
 
-    public State(Interpreter i){
+    public State(Interpreter i, String name, int id){
+        this.name = name;
+        this.id = id;
+        this.input = new FeedableBufferedIO();
+
         origin = i;
         memory = origin.memory;
         primitives = origin.primitives;
+
+        call_stack.add(origin.ENTRY_POINT);
+
     }
 
     boolean repl_running = false;
-    void repl() {
+    synchronized public void stop(){
+        repl_running = false;
+    }
+
+    /**
+     *
+     * @param action return value of search_word
+     */
+    void repl(int action) {
         repl_running = true;
         //DEBUG = true;
+        call_stack.add(origin.ENTRY_POINT);
 
+        // deal with initial action
+        if(action != -1) {
+            if (primitives.containsKey(action)) {
+                primitives.get(action).accept(this);
+            } else {
+                System.out.println("thread init with forth word " + origin.read_string(action));
+                call_stack.add(action);
+            }
+        }
         /* All instructions must be stored in memory, even the
          * uncompiled immediate mode stuff. ENTRY_POINT is a pointer
          * to an integer of reserved space for instructions
@@ -50,27 +77,19 @@ public class State {
 
 //       for(int i=0;i<30;i++){
         while (repl_running) {
-            boolean DEBUG = false;
             int word_address = memory.get(call_stack.last());
-
-             /* Instructions within immediate word during compile time should be executed,
-              * but the design of the REPL loop compiles the instructions anyway
-              * Check for when the call stack has 2 or more frames, then enforce immediate mode
-              */
-             // immediate words and immediate mode will cause the current instruction to be executed
-
 
             // primitive or forth word?
             if(primitives.containsKey(word_address)) {
                 // execute primitive
                 try {
-                    //System.out.println("exec " + origin.primitive_names.get(word_address));
+                    System.out.println("exec " + origin.primitive_names.get(word_address));
                     // immediate and primitive
                     primitives.get(word_address).accept(this);
 
                 }catch (Exception e) {
-                    origin.outputln("Uncaught Exception " + e.toString());
-                    System.exit(69);
+                    origin.outputln("Uncaught Exception ");
+                    e.printStackTrace();
                 }
 
             }else{
@@ -79,26 +98,11 @@ public class State {
                 call_stack.add(word_address + memory.get(word_address));
             }
 
-
-            /*//TODO forgo this memory wrangling, just add the new xt to the call stack
-            // check for empty call stack, if so get the next instruction
-            if (call_stack.size() == 0)
-            {
-                boolean next_word = input.hasNext();
-
-                // end of input stream
-                if(!next_word) return;
-
-                if(DEBUG)
-                    origin.outputln("\nNext word: " + next_word);
-
-                // do not allow the call stack to be incremented since we just reset the call stack
-                continue;
-            }*/
-
             //advance code pointer
             call_stack.incrementLast();
         }
+
+        State r = origin.threads.remove(id);
     }
 
 
@@ -152,8 +156,6 @@ public class State {
             if(a || b){
                 //System.out.println("\tinterpret places " + origin.read_string(address) + " on stack");
                 if(primitives.containsKey(address)){
-                    // TODO special case trollol
-                    //System.out.println("AAAAAAAAAAA");
                     primitives.get(address).accept(this);
                 }else {
                     call_stack.add(address + memory.get(address));
