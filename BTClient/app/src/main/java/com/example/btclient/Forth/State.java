@@ -63,8 +63,8 @@ public class State {
             if (primitives.containsKey(action)) {
                 primitives.get(action).accept(this);
             } else {
-                System.out.println("thread init with forth word " + origin.read_string(action));
-                call_stack.add(action);
+                call_stack.add(action + memory.get(action));
+                call_stack.incrementLast();
             }
         }
         /* All instructions must be stored in memory, even the
@@ -83,7 +83,7 @@ public class State {
             if(primitives.containsKey(word_address)) {
                 // execute primitive
                 try {
-                    System.out.println("exec " + origin.primitive_names.get(word_address));
+                    //System.out.println("exec " + origin.primitive_names.get(word_address));
                     // immediate and primitive
                     primitives.get(word_address).accept(this);
 

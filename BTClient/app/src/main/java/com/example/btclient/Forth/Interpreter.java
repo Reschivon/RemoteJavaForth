@@ -31,6 +31,38 @@ public class Interpreter {
     private int thread_counter = 0;
     HashMap<Integer, State> threads = new HashMap<>();
 
+    public static void main(String[] args) {
+        Interpreter interpreter = new Interpreter(
+                System.out::print,
+                new Object());
+
+        Scanner scanner = new Scanner(System.in);
+        new Thread(() -> {
+            while(true) {
+                //TODO figure out why these cant be one line
+                String feed = scanner.nextLine();
+                interpreter.feed(feed);
+            }
+        }).start();
+
+        int def = interpreter.new_thread(null); //default thread
+        interpreter.set_user_thread(def);
+    }
+
+    public Interpreter(outputListener outputL, Object root){
+        setOutputListener(outputL);
+        setNativeRoot(root);
+
+        // initialization thread
+        int init_thread_id = new_thread(null);
+        State init_thread = threads.get(init_thread_id);
+
+        init_thread.input.feed(startup);
+        init_thread.input.signalEnd();
+
+        outputln("Startup file found and run");
+    }
+
     public int new_thread(String action){
         State s;
         int id = thread_counter;
@@ -56,7 +88,6 @@ public class Interpreter {
     public void feed(String s){
         current_thread.input.feed(s);
     }
-
     // output
     public interface outputListener{
         void outputInvoked(String message);
@@ -158,17 +189,10 @@ public class Interpreter {
                 state.call_stack.incrementLast();
             state.stack.pop();
         });
-        declarePrimitive("interpret", state ->
-                state.interpret()
-        );declarePrimitive("greet", state ->
-            System.out.println("HELLO HELLO HELLO HELLO")
-        );declarePrimitive("quit", state ->
-            state.stop()
-        );
-        declarePrimitive("async", state ->{
-            state.stack.add(new_thread(state.input.next()));
-        });
-
+        declarePrimitive("interpret", state -> state.interpret());
+        declarePrimitive("greet", state -> System.out.println("HELLO HELLO HELLO HELLO"));
+        declarePrimitive("quit", state -> state.stop());
+        declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next())));
         declarePrimitive("threads", state ->{
             ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
             Collections.sort(sortedKeys);
@@ -176,9 +200,19 @@ public class Interpreter {
                 System.out.println(i + ": " + threads.get(i).name);
             }
         });
-
         declarePrimitive("switch-thread", state ->{
             current_thread = threads.get(state.stack.pop());
+        });
+        declarePrimitive("stop-thread", state ->{
+            threads.get(state.stack.pop()).stop();
+        });
+        //TODO make less crude
+        declarePrimitive("wait", state ->{
+            try {
+                Thread.sleep(state.stack.pop());
+            } catch (InterruptedException e) {
+                System.out.println("Task interrupted");
+            }
         });
 
                 create(":");
@@ -204,39 +238,6 @@ public class Interpreter {
         memory.add(-2);
     }
 
-    public static void main(String[] args) {
-        Interpreter interpreter = new Interpreter(
-                System.out::print,
-                new Object());
-
-        Scanner scanner = new Scanner(System.in);
-        new Thread(() -> {
-            while(true) {
-                //TODO figure out why these cant be one line
-                String feed = scanner.nextLine();
-                interpreter.feed(feed);
-            }
-        }).start();
-
-        int def = interpreter.new_thread(null); //default thread
-        interpreter.set_user_thread(def);
-    }
-
-    public Interpreter(outputListener outputL, Object root){
-        setOutputListener(outputL);
-        setNativeRoot(root);
-
-        // initialization thread
-        int init_thread_id = new_thread(null);
-        State init_thread = threads.get(init_thread_id);
-
-        init_thread.input.feed(startup);
-        init_thread.input.signalEnd();
-
-        outputln("Startup file found and run");
-    }
-
-
     /*void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
         String classname = input.next();
         Constructor[] constructors;
@@ -261,8 +262,6 @@ public class Interpreter {
     }
 */
     // (caller object '' name of attribute -- return value or address of returned object)
-    
-
 
     /**
      * See the other definition of write_string
@@ -642,7 +641,7 @@ public class Interpreter {
                 "22 pies set",
                 "pies read print",
 
-                ": go begin 42 print again ;"
+                ": go begin 42 print 1500 wait again ;"
 
 //                "async greet",
 //                "threads"
