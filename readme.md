@@ -15,7 +15,7 @@ The need to speed up the development process of FIRST Tech Challenge robotics co
 - Multi tasking using native Java threads
 
 ```
-PC user shell <---> BT Host   <----remote BT connection--->   Bluetooth Client <---> Java Forth Interpreter
+PC user shell <---> BT Host   <----remote BT connection--->   Bluetooth Client <---> Java Forth Interpreter <---> Rest of Java Code
 ```
 
 ## Integrating into your code
