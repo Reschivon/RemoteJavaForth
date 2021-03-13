@@ -2,7 +2,10 @@
 
 This library allows the user to communicate with a Forth system running on a remote machine. Through this Forth system, the user can also interop with Java code running on the remote machine.
 
-![](https://youtu.be/o8DEKkxpQ-8)
+<figure class="video_container">
+  <iframe src="https://youtu.be/embed/o8DEKkxpQ-8" frameborder="0" allowfullscreen="true"> </iframe>
+</figure>
+<!-- blank line -->
 
 ## Motivation
 
