@@ -1,11 +1,23 @@
 # Remote Android Forth REPL 
-```
-PC user shell --- BT Host     <-----remote BT connection--->     Bluetooth Client --- Java Forth Interpreter
-```
 
-This library allows the user to communicate with a Forth system running on a remote machine. Through this Forth system, the user can also control Java code running on the remote machine.
+This library allows the user to communicate with a Forth system running on a remote machine. Through this Forth system, the user can also interop with Java code running on the remote machine.
+
+## Motivation
+
+The need to speed up the development process of FIRST Tech Challenge robotics code. Deploying a single edit requires 20s of build time, manual download thru a cable, repositioning the robot, and restarting the OpMode. However with Forth this can be reduced to nil.
+
+- Wirelessly send Forth commands to interpreter running on robot (no touch!)
+- Interactively interop with compiled Java
+- No modification to existing Java codebase
+- Forth interpreter supports compilation, branching, xts, etc. but is built with Java speed in mind
+- Multi tasking using native Java threads
+
+```
+PC user shell <---> BT Host   <----remote BT connection--->   Bluetooth Client <---> Java Forth Interpreter
+```
 
 ## Integrating into your code
+
 On the remote machine:
 ```
 public class MainActivity extends Activity {
@@ -42,9 +54,7 @@ public class MainActivity extends Activity {
   /*        */
 ```
 
-Run the Host code on your PC and
+Run the Host code on your PC and if the Host and Client are paired, they will auto connect
+You may need to find an OSX version of Bluecove library for macs
 
-Features
-- No modification to existing Java codebase
-- Forth interpreter supports compilation, branching, xts, etc. but is built with Java speed in mind
-- Multi tasking using native Java threads
+
