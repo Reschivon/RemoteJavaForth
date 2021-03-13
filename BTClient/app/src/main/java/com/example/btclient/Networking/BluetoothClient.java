@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.util.Log;
 import android.widget.TextView;
+import com.example.btclient.Forth.Consumer;
 import com.example.btclient.Forth.Interpreter;
 
 import java.io.BufferedReader;
@@ -17,8 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
-
 public class BluetoothClient {
 
 	private static final int REQUEST_ENABLE_BT = 1;
@@ -34,8 +33,7 @@ public class BluetoothClient {
     // Server's MAC address
     private final String address;
 
-    TextView out;
-    Activity activity;
+    Consumer<String> debug_out;
 
     private List<responseListener> listeners = new ArrayList<>();
 	public void addResponseListener(responseListener r) {listeners.add(r);}
@@ -62,18 +60,17 @@ public class BluetoothClient {
 
 	public void outAppend(String s){
 		Log.d("Log", s);
-		activity.runOnUiThread((()->out.append("\n" + s)));
+		debug_out.accept("\n" + s);
 	}
 
-	public BluetoothClient(Activity activity, String address, String uuid, TextView textView, responseListener rl) {
+	public BluetoothClient(Consumer<String> debug_out, Activity activity, String address, String uuid, responseListener rl) {
 	    this.address = address;
 	    this.MY_UUID = UUID.fromString(uuid);
-        this.activity = activity;
-        this.out = textView;
+        this.debug_out = debug_out;
         addResponseListener(rl);
 
 		btAdapter = BluetoothAdapter.getDefaultAdapter();
-		CheckBTState();
+		CheckBTState(activity);
 
 		listen.start();
 	}
@@ -160,7 +157,7 @@ public class BluetoothClient {
 	}
 
 		
-    private void CheckBTState() {
+    private void CheckBTState(Activity activity) {
 		// Check for Bluetooth support and then check to make sure it is turned on
 	
 		// Emulator doesn't support Bluetooth and will return null

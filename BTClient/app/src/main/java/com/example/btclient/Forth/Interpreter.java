@@ -35,9 +35,7 @@ public class Interpreter {
         Scanner scanner = new Scanner(System.in);
         new Thread(() -> {
             while(true) {
-                //TODO figure out why these cant be one line
-                String feed = scanner.nextLine();
-                interpreter.feed(feed);
+                interpreter.feed(scanner.nextLine());
             }
         }).start();
 
