@@ -7,17 +7,21 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.util.Log;
 import android.widget.TextView;
-import com.example.btclient.Forth.Consumer;
-import com.example.btclient.Forth.Interpreter;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
+
 public class BluetoothClient {
 
 	private static final int REQUEST_ENABLE_BT = 1;
@@ -33,7 +37,8 @@ public class BluetoothClient {
     // Server's MAC address
     private final String address;
 
-    Consumer<String> debug_out;
+    Telemetry out;
+    Activity activity;
 
     private List<responseListener> listeners = new ArrayList<>();
 	public void addResponseListener(responseListener r) {listeners.add(r);}
@@ -60,17 +65,18 @@ public class BluetoothClient {
 
 	public void outAppend(String s){
 		Log.d("Log", s);
-		debug_out.accept("\n" + s);
+		activity.runOnUiThread((()->out.addData("Forth>", "\n" + s)));
 	}
 
-	public BluetoothClient(Consumer<String> debug_out, Activity activity, String address, String uuid, responseListener rl) {
+	public BluetoothClient(Activity activity, String address, String uuid, Telemetry textView, responseListener rl) {
 	    this.address = address;
 	    this.MY_UUID = UUID.fromString(uuid);
-        this.debug_out = debug_out;
+        this.activity = activity;
+        this.out = textView;
         addResponseListener(rl);
 
 		btAdapter = BluetoothAdapter.getDefaultAdapter();
-		CheckBTState(activity);
+		CheckBTState();
 
 		listen.start();
 	}
@@ -133,8 +139,14 @@ public class BluetoothClient {
 		}catch (IOException e){
 			if (address.equals("00:00:00:00:00:00"))
 				outAppend("<Error> Send fail. Server address is 00:00:00:00:00:00");
-			else
+			else {
 				outAppend("<Error> Send fail. Check that the SPP UUID: " + MY_UUID.toString() + " exists on server");
+				StringWriter sw = new StringWriter();
+				PrintWriter p = new PrintWriter(sw);
+				e.printStackTrace(p);
+
+				outAppend(sw.toString());
+			}
 		}
 	}
 	
@@ -157,7 +169,7 @@ public class BluetoothClient {
 	}
 
 		
-    private void CheckBTState(Activity activity) {
+    private void CheckBTState() {
 		// Check for Bluetooth support and then check to make sure it is turned on
 	
 		// Emulator doesn't support Bluetooth and will return null

@@ -54,10 +54,12 @@ public class Interpreter {
 		interpreter.set_user_thread(def);
 	}
 	
-	public Interpreter(outputListener outputL, Object root){
+	public Interpreter(outputListener outputL, Object root) {
 		setOutputListener(outputL);
 		setNativeRoot(root);
-		
+	}
+	
+	public void init(){
 		// initialization thread
 		int init_thread_id = new_thread(null);
 		State init_thread = threads.get(init_thread_id);
@@ -203,8 +205,8 @@ public class Interpreter {
 			ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
 			Collections.sort(sortedKeys);
 			for(int i : sortedKeys) {
-				System.out.println(i + ": " + threads.get(i).name
-						+ (threads.get(i).id == current_thread.id?" <-":""));
+				outputln(i + ": " + threads.get(i).name
+						+ (threads.get(i).id == current_thread.id?" <-":""), state.id);
 			}
 		});
 		declarePrimitive("switch-thread", state ->{
@@ -221,7 +223,7 @@ public class Interpreter {
 			try {
 				Thread.sleep(state.stack.pop());
 			} catch (InterruptedException e) {
-				System.out.println("Task interrupted");
+				outputln("Task interrupted", state.id);
 			}
 		});
 		
