@@ -57,6 +57,8 @@ public class Interpreter {
 	public Interpreter(outputListener outputL, Object root) {
 		setOutputListener(outputL);
 		setNativeRoot(root);
+		
+		init();
 	}
 	
 	public void init(){
@@ -133,8 +135,8 @@ public class Interpreter {
 				e.printStackTrace();
 			}
 		});
-		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject()));
-		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject()));
+		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject(), s->outputln(s, state.id)));
+		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject(), s->outputln(s, state.id)));
 		declarePrimitive( "objects" , state -> {
 			for (Object tok : state.objects)
 				output(tok.getClass().getName() + " ", state.id);

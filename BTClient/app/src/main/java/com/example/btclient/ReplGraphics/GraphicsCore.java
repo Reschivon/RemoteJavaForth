@@ -1,6 +1,6 @@
 package com.example.btclient.ReplGraphics;
 
-import com.example.btclient.Forth.Consumer;
+import com.example.btclient.ReplGraphics.XYRPlot.XYRPlot;
 
 import java.util.HashMap;
 
