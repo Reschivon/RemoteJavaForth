@@ -9,11 +9,11 @@ package com.example.btclient.Forth;
  * Similar to a Unix pipe
  */
 public abstract class BufferedIO {
-	abstract boolean hasNext();
-	abstract String next();
-	abstract public void feed(String in);
-	abstract void signalEnd();
-	
-	boolean done = false;
-	
+    abstract boolean hasNext();
+    abstract String next();
+    abstract public void feed(String in);
+    abstract void signalEnd();
+
+    boolean done = false;
+
 }
