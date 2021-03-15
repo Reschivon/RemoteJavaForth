@@ -24,20 +24,20 @@ public class ReflectionMachine {
 		return f;
 	}
 	
-	public static void methods(Object target){
+	public static void methods(Object target, Consumer<String> o){
 		Method[] l = target.getClass().getMethods();
 		for(Method f:l){
-			System.out.println("Method: " + f);
+			o.accept("Method: " + f);
 		}
-		System.out.println();
+		o.accept("");
 	}
 	
-	public static void fields(Object target){
+	public static void fields(Object target, Consumer<String> o){
 		Field[] l = target.getClass().getFields();
 		for(Field f:l){
-			System.out.println(f);
+			o.accept(f.toString());
 		}
-		System.out.println();
+		o.accept("");
 	}
 	
 	
