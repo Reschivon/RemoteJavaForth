@@ -1,5 +1,7 @@
 package com.example.btclient.Forth;
 
+import com.example.btclient.ReplGraphics.GraphicsCore;
+
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
@@ -28,8 +30,17 @@ public class Interpreter {
 	HashMap<Integer, State> threads = new HashMap<>();
 	
 	public static void main(String[] args) {
+		GraphicsCore graphics = new GraphicsCore();
+		
 		Interpreter interpreter = new Interpreter(
-				System.out::print,
+				string -> {
+					// escape sequence for graphics modules
+					if(string.charAt(0) == '\\') {
+						graphics.feed(string.substring(1));
+					}else{
+						System.out.print(string);
+					}
+				},
 				new Object());
 		
 		Scanner scanner = new Scanner(System.in);
@@ -91,7 +102,7 @@ public class Interpreter {
 		outputListener = o;
 	}
 	
-	public final boolean SHOW_OUTPUT_FROM_OTHER_THREADS = false;
+	public final boolean SHOW_OUTPUT_FROM_OTHER_THREADS = true;
 	void output(Object s, int id){
 		if(current_thread != null && id != current_thread.id) {
 			if(SHOW_OUTPUT_FROM_OTHER_THREADS)
@@ -185,7 +196,7 @@ public class Interpreter {
 			state.stack.pop();
 		});
 		declarePrimitive("interpret", State::interpret);
-		declarePrimitive("greet", state -> System.out.println("HELLO HELLO HELLO HELLO"));
+		declarePrimitive("greet", state -> outputln("\\xyrplot 4 4 0.5", state.id));
 		declarePrimitive("stop", State::stop);
 		declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next_token())));
 		declarePrimitive("threads", state ->{
