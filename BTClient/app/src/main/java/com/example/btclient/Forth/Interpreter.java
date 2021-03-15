@@ -106,45 +106,49 @@ public class Interpreter {
 	
 	{
 		declarePrimitive( "new" , state -> {}); /*newOperator();*/
-		declarePrimitive( "/" , state -> {
+		declarePrimitive( "->" , state -> {
+			// the calling object
+			Object actor = state.getObject();
+			// the name of the object's field or method
+			String fieldOrClass = state.input.next_token();
+			
 			try {
-				state.dotOperator();
-			} catch (InvocationTargetException e) {
-				e.printStackTrace();
+				ReflectionMachine.dot_operator(actor, fieldOrClass, state);
 			} catch (IllegalAccessException e) {
+				e.printStackTrace();
+			} catch (InvocationTargetException e) {
 				e.printStackTrace();
 			}
 		});
 		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject()));
 		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject()));
-		declarePrimitive( "seeobj" , state -> {
+		declarePrimitive( "objects" , state -> {
 			for (Object tok : state.objects)
 				output(tok.getClass().getName() + " ", state.id);
 			outputln("<-", state.id);
 		});
 		declarePrimitive( "native" , state -> state.addObject(nativeRoot));
-		declarePrimitive( "seestack" , state -> {
+		declarePrimitive( ".S" , state -> {
 			for (int tok : state.stack)
 				output(tok + " ", state.id);
 			outputln("<-", state.id);
 		});
-		declarePrimitive( "seemem" , state -> show_mem(state.id));
-		declarePrimitive( "seerawmem" , state -> outputln(memory, state.id));
-		declarePrimitive( "memposition" , state -> state.stack.add(memory.size()));
-		declarePrimitive( "here" , state -> state.stack.add(HERE));
-		declarePrimitive( "print" , state -> outputln(state.stack.pop(), state.id));
-		declarePrimitive( "return" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
-		declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next())));
-		declarePrimitive( "stack>mem" , state -> memory.add(state.stack.pop()));
+		declarePrimitive( "words" , state -> list_words(state.id));
+		declarePrimitive( "see" , state -> show_mem(state.input.next_token(), state.id));
+		declarePrimitive( "here" , state -> state.stack.add(memory.size()));
+		declarePrimitive( "latest" , state -> state.stack.add(HERE));
+		declarePrimitive( "." , state -> outputln(state.stack.pop(), state.id));
+		declarePrimitive( "exit" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
+		declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next_token())));
+		declarePrimitive( "," , state -> memory.add(state.stack.pop()));
 		declarePrimitive( "[" , state -> state.immediate.set(true), true);
 		declarePrimitive( "]" , state -> state.immediate.set(false));
-		declarePrimitive( "literal" , state -> {
+		declarePrimitive( "lit" , state -> {
 			state.call_stack.incrementLast();
 			state.stack.add(memory.get(state.call_stack.last()));
 		}, true);
-		declarePrimitive( "read" , state -> state.stack.add(memory.get(state.stack.pop())));
-		declarePrimitive( "donothing" , state -> output("", state.id));
-		declarePrimitive( "set" , state -> { //value, address <-- top of stack
+		declarePrimitive( "@" , state -> state.stack.add(memory.get(state.stack.pop())));
+		declarePrimitive( "!" , state -> { //value, address <-- top of stack
 			int address = state.stack.pop();
 			if (address == memory.size()) memory.add(state.stack.pop());
 			else memory.set(address, state.stack.pop());
@@ -165,8 +169,8 @@ public class Interpreter {
 		declarePrimitive( "dup" , state -> state.stack.add(state.stack.last()));
 		declarePrimitive( "drop" , state -> state.stack.remove(state.stack.size() - 1));
 		
-		declarePrimitive( "stringliteral" , state -> write_string(state.input.next(), memory.size()));
-		declarePrimitive( "read-string" , state -> outputln(read_string(state.stack.pop()), state.id));
+		declarePrimitive( "token>memory" , state -> write_string(state.input.next_token(), memory.size()));
+		declarePrimitive( "print-string" , state -> outputln(read_string(state.stack.pop()), state.id));
 		declarePrimitive( "create" , state -> {
 			memory.add(HERE);
 			HERE = memory.size();
@@ -182,8 +186,8 @@ public class Interpreter {
 		});
 		declarePrimitive("interpret", State::interpret);
 		declarePrimitive("greet", state -> System.out.println("HELLO HELLO HELLO HELLO"));
-		declarePrimitive("quit", State::stop);
-		declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next())));
+		declarePrimitive("stop", State::stop);
+		declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next_token())));
 		declarePrimitive("threads", state ->{
 			ArrayList<Integer> sortedKeys = new ArrayList<>(threads.keySet());
 			Collections.sort(sortedKeys);
@@ -212,19 +216,19 @@ public class Interpreter {
 		
 		create(":");
 		memory.add(search_word("create"));
-		memory.add(search_word("stringliteral"));
-		memory.add(search_word("literal"));
+		memory.add(search_word("token>memory"));
+		memory.add(search_word("lit"));
 		memory.add(0);
-		memory.add(search_word("stack>mem"));
+		memory.add(search_word(","));
 		memory.add(search_word("]"));
-		memory.add(search_word("return"));
+		memory.add(search_word("exit"));
 		
 		create(";");
 		memory.add(search_word("["));
-		memory.add(search_word("literal"));
-		memory.add(search_word("return"));
-		memory.add(search_word("stack>mem"));
-		memory.add(search_word("return"));
+		memory.add(search_word("lit"));
+		memory.add(search_word("exit"));
+		memory.add(search_word(","));
+		memory.add(search_word("exit"));
 		set_immediate();
 		
 		ENTRY_POINT = memory.size();
@@ -308,13 +312,26 @@ public class Interpreter {
 		return new String(str);
 	}
 	
+	void list_words(int id){
+			// walk through dictionary
+			int here = HERE;
+			while(here != -1){
+				String word_name = read_string(here);
+				output(word_name + " ", id);
+				
+				//move to next word in linked list
+				here = memory.get(here-1);
+			}
+			outputln("", id);
+	}
+	
 	/**
 	 * Scans the memory and prints each word, in order of
 	 * declaration, along with its definition
 	 * Ignores other non-word data, like variable values
 	 * Should only be used for debugging; assumptions made
 	 */
-	void show_mem(int id) {   //make array of word addresses
+	void show_mem(String target_word_name, int id) {   //make array of word addresses
 		List<Integer> pointers = new ArrayList<>();
 		
 		// read and store word addresses
@@ -330,6 +347,10 @@ public class Interpreter {
 			int word_address = pointers.get(i);
 			
 			String word_name = read_string(word_address);
+			
+			if(!word_name.equals(target_word_name))
+				continue;
+			
 			int immediate = memory.get(word_address + memory.get(word_address));
 			
 			String setPlainText = "\033[0;0m";
@@ -355,22 +376,24 @@ public class Interpreter {
 				String name = read_string(mem);
 				
 				//stop iterating if return encountered
-				if(name.equals("return"))
+				if(name.equals("exit"))
 					break;
 				
 				output(name + " ", id);
 				
-				// special condition if next element is read as literal
-				if(name.equals("literal") || name.equals("branch") || name.equals("branch?"))
+				// special condition if next element is read as lit
+				if(name.equals("lit") || name.equals("branch") || name.equals("branch?"))
 				{
 					j++;
 					output(memory.get(j) + " ", id);
 				}
 			}
 			outputln("", id);
+			
+			return;
 		}
+		outputln("word not found", id);
 		
-		outputln("", id);
 	}
 	
 	/**
@@ -485,33 +508,31 @@ public class Interpreter {
 	{
 		string_processor("",
 				": immediate\n",
-				"        	here read\n",
-				"        	here +",
+				"        	latest @\n",
+				"        	latest +",
 				"        	1 swap",
-				"        	set",
+				"        	!",
 				";",
 				
 				": [compile]",
-				"        	word stack>mem",
+				"        	word ,",
 				"; immediate",
-				
-				": words seemem ;",
 				
 				": [word] word ; immediate",
 				
-				": ll [word] literal [word] literal stack>mem stack>mem ; immediate",
+				": ll [word] lit [word] lit , , ; immediate",
 				
-				": token>stack ll stack>mem word stack>mem ; immediate",
+				": ' ll , word , ; immediate",
 				
 				": postpone",
-				"        	[compile] token>stack",
-				"        	token>stack stack>mem stack>mem",
+				"        	[compile] '",
+				"        	' , ,",
 				"; immediate",
 				
 				": if",
-				"        	token>stack branch? stack>mem",
-				"        	memposition",
-				"        	0 stack>mem",
+				"        	' branch? ,",
+				"        	here",
+				"        	0 ,",
 				"; immediate",
 				
 				": unless",
@@ -521,55 +542,55 @@ public class Interpreter {
 				
 				": then",
 				"        	dup",
-				"        	memposition swap -",
-				"        	swap set",
+				"        	here swap -",
+				"        	swap !",
 				"; immediate",
 				
 				": else",
-				"		token>stack branch stack>mem",
-				"		memposition",
-				"		0 stack>mem",
+				"		' branch ,",
+				"		here",
+				"		0 ,",
 				"		swap",
 				"		dup",
-				"		memposition swap -",
-				"		swap set",
+				"		here swap -",
+				"		swap !",
 				"; immediate",
 				
 				": begin",
-				"		memposition",
+				"		here",
 				"; immediate",
 				
 				": until",
-				"		token>stack branch? stack>mem",
-				"		memposition -",
-				"		stack>mem",
+				"		' branch? ,",
+				"		here -",
+				"		,",
 				"; immediate",
 				
 				": again",
-				"		token>stack branch stack>mem",
-				"		memposition -",
-				"		stack>mem",
+				"		' branch ,",
+				"		here -",
+				"		,",
 				"; immediate",
 				
 				": while",
-				"		token>stack branch? stack>mem",
-				"		memposition",
-				"		0 stack>mem",
+				"		' branch? ,",
+				"		here",
+				"		0 ,",
 				"; immediate",
 				
 				": repeat",
-				"		token>stack branch stack>mem",
+				"		' branch ,",
 				"		swap",
-				"		memposition - stack>mem",
+				"		here - ,",
 				"		dup",
-				"		memposition swap -",
-				"		swap set",
+				"		here swap -",
+				"		swap !",
 				"; immediate",
 				
 				": ) ;",
 				
 				": (",
-				"        	[compile] literal [word] ) [ stack>mem ]",
+				"        	[compile] lit [word] ) [ , ]",
 				"        	begin",
 				"        	    dup word =",
 				"        	until",
@@ -580,36 +601,34 @@ public class Interpreter {
 				"( TODO: functionality to nest parentheses )",
 				
 				": constant ( initial_value '' constant_name -- )",
-				"        	create              ( set up a new word )",
-				"        	stringliteral",
-				"        	0 stack>mem",
+				"        	create              ( ! up a new word )",
+				"        	token>memory",
+				"        	0 ,",
 				
-				"        	postpone literal    ( add literal instruction to variable definition )",
-				"        	stack>mem           ( append initial value to memory )",
-				"        	postpone return     ( add return instruction to constant definition )",
+				"        	postpone lit    ( add lit instruction to variable definition )",
+				"        	,           ( append initial value to memory )",
+				"        	postpone exit     ( add exit instruction to constant definition )",
 				";",
-				
-				": = constant ; ( just thought it made sense )",
 				
 				": variable ( initial_value '' variable_name -- )",
-				"        	memposition         ( push memory address to stack )",
+				"        	here         ( push memory address to stack )",
 				"        	swap",
-				"        	memposition set     ( append top of stack to memory )",
+				"        	here !     ( append top of stack to memory )",
 				
-				"        	create              ( set up a new word )",
-				"        	stringliteral",
-				"        	0 stack>mem",
+				"        	create              ( ! up a new word )",
+				"        	token>memory",
+				"        	0 ,",
 				
-				"        	postpone literal    ( add literal instruction to variable definition )",
-				"        	stack>mem           ( append pointer to memory )",
-				"        	postpone return     ( add return instruction to variable definition )",
+				"        	postpone lit    	( add lit instruction to variable definition )",
+				"        	,           ( append pointer to memory )",
+				"        	postpone exit     ( add exit instruction to variable definition )",
 				";",
 				
-				": iftest if 22 print else 11 print then ;",
+				": iftest if 22 . else 11 . then ;",
 				
-				": whiletest begin 11 print 1 until ;",
+				": whiletest begin 11 . 1 until ;",
 				
-				": unlesstest unless 11 print else 22 print then ;",
+				": unlesstest unless 11 . else 22 . then ;",
 				
 				"0 unlesstest",
 				"1 unlesstest",
@@ -619,13 +638,13 @@ public class Interpreter {
 				
 				"whiletest",
 				
-				": trojan-print postpone print ; immediate",
+				": trojan-print postpone . ; immediate",
 				
-				": troy 22 trojan-print 11 print ;",
+				": troy 22 trojan-print 11 . ;",
 				
 				"troy",
 				
-				"22 print ( 55 print ) 11 print",
+				"22 . ( 55 . ) 11 .",
 				
 				"( commentation! ) ( exciting! )",
 				
@@ -634,18 +653,18 @@ public class Interpreter {
 				"( You can enable aggressive error messages with the word 'profanity' )",
 				
 				"22 constant burgers",
-				"burgers print",
+				"burgers .",
 				
 				"11 variable pies",
-				"pies read print",
+				"pies @ .",
 				
-				"22 pies set",
-				"pies read print",
+				"22 pies !",
+				"pies @ .",
 				
-				": go begin 42 print 1500 wait again ;"
+				": go begin 42 . 1500 wait again ;"
 
 //                "async greet",
-//                "threads"
+//                "th@s"
 		);
 	}
 }

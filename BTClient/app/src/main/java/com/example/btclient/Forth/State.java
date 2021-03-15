@@ -28,8 +28,8 @@ public class State {
 	String name;
 	int id;
 	
-	List<Integer> memory;
-	HashMap<Integer, Consumer<State>> primitives;
+	private List<Integer> memory;
+	private HashMap<Integer, Consumer<State>> primitives;
 	
 	public State(Interpreter i, String name, int id){
 		this.name = name;
@@ -49,10 +49,6 @@ public class State {
 		repl_running = false;
 	}
 	
-	/**
-	 *
-	 * @param action return value of search_word
-	 */
 	void repl(int action) {
 		repl_running = true;
 		//DEBUG = true;
@@ -60,8 +56,8 @@ public class State {
 		
 		// deal with initial action
 		if(action != -1) {
-			if (primitives.containsKey(action)) {
-				primitives.get(action).accept(this);
+			if (exec_primitive(action)) {
+			
 			} else {
 				call_stack.add(action + memory.get(action));
 				call_stack.incrementLast();
@@ -80,18 +76,8 @@ public class State {
 			int word_address = memory.get(call_stack.last());
 			
 			// primitive or forth word?
-			if(primitives.containsKey(word_address)) {
-				// execute primitive
-				try {
-					//System.out.println("exec " + origin.primitive_names.get(word_address));
-					// immediate and primitive
-					primitives.get(word_address).accept(this);
-					
-				}catch (Exception e) {
-					origin.outputln("Uncaught Exception ", id);
-					e.printStackTrace();
-				}
-				
+			if(exec_primitive(word_address)) {
+			
 			}else{
 				// execute forth word
 				//System.out.println("exec forth" + origin.read_string(word_address));
@@ -105,26 +91,35 @@ public class State {
 		origin.threads.remove(id);
 	}
 	
-	
 	public void interpret() {
 		// usually EOF when reading from file
 		if(!input.hasNext()) {
-			origin.outputln("....end of file", id);
+			// origin.outputln("\n....end of file", id);
 			repl_running = false;
 			return;
 		}
 		
 		// get next token from input
-		String next_Word = input.next();
+		String next_word = input.next();
 		
+		//is carriage return
+		if(next_word.equals("\n")) {
+			System.out.print("OK " + (immediate.get()?"IMMT":"CMPL") + " STK:" + stack.size() + " >");
+			return;
+		}
+		
+		// TODO why am I getting zero-length tokens
+		if(next_word.equals("")) {
+			return;
+		}
 		
 		// if it's a number, then deal with the number and skip to next
 		try{
-			int val = Integer.parseInt(next_Word);
+			int val = Integer.parseInt(next_word);
 			if(immediate.get()) {
 				stack.add(val);
 			}else{
-				memory.add(origin.search_word("literal"));
+				memory.add(origin.search_word("lit"));
 				memory.add(val);
 			}
 			return;
@@ -132,12 +127,12 @@ public class State {
 		
 		// it is a token, not a number
 		// find address of word identified by token
-		int address = origin.search_word(next_Word);
+		int address = origin.search_word(next_word);
 		
 		// does address correspond to existing word?
-		if(origin.search_word(next_Word) == -1) {
+		if(origin.search_word(next_word) == -1) {
 			// word not found
-			origin.outputln("word " + next_Word + " not found", id);
+			origin.outputln("word " + next_word + " not found", id);
 		}else{
 			// word found
 			// is compiled or executed?
@@ -155,8 +150,8 @@ public class State {
 			// execute
 			if(a || b){
 				//System.out.println("\tinterpret places " + origin.read_string(address) + " on stack");
-				if(primitives.containsKey(address)){
-					primitives.get(address).accept(this);
+				if(exec_primitive(address)){
+
 				}else {
 					call_stack.add(address + memory.get(address));
 				}
@@ -167,57 +162,20 @@ public class State {
 			}
 		}
 	}
-	
-	void dotOperator() throws InvocationTargetException, IllegalAccessException {
-		// the calling object
-		Object actor = getObject();
-		// the name of the object's field or method
-		String fieldOrClass = input.next();
-		
-		// get actual type of attribute
-		Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
-		
-		if (attribute == null) {
-			origin.outputln("field or class " + fieldOrClass + " not found as attribute", id);
-		}
-		
-		// call a method and push return to stack
-		else if(attribute instanceof Method){
-			Method themethod = ((Method)attribute);
-			
-			// get parameters
-			Object[] params = new Object[themethod.getParameterTypes().length];
-			
-			for(int i=0; i<params.length;i++){
-				int stackElem = stack.pop();
-				// stack has object address or integer?
-				params[i] = (stackElem < 0)? objects.get(-stackElem-1):stackElem;
+	//return true if primitive exists
+	private boolean exec_primitive(int address){
+		if(primitives.containsKey(address)){
+			try {
+				primitives.get(address).accept(this);
+			}catch (Exception e) {
+				origin.outputln("Uncaught Exception ", id);
+				e.printStackTrace();
 			}
-			// invoke
-			Object returnval = themethod.invoke(actor, params);
-			
-			// manage return as object or integer
-			if(returnval instanceof Integer){
-				stack.add((int)returnval);
-			} else {// is object
-				objects.add(returnval);
-				stack.add(-objects.size());
-			}
-			
-		}
-		// get the value of field
-		else if(attribute instanceof Field) {
-			Field thefield = ((Field)attribute);
-			if (thefield.getType() == int.class || thefield.getType() == Integer.class) {
-				stack.add(thefield.getInt(actor));
-			}
-			else {//is object
-				addObject(thefield.get(actor));
-			}
+			return true;
+		} else {
+			return false;
 		}
 	}
-	
-	
 	
 	void addObject(Object o){
 		objects.add(o);
@@ -226,24 +184,5 @@ public class State {
 	Object getObject(){
 		return objects.get( (-stack.pop())-1 );
 	}
-
-
-    /*String read_string(int address, List<Integer> memory)
-    {
-        if(memory.get(address)-1<0)
-            origin.outputln("string length invalid: "+(memory.get(address)-1));
-
-        // read length of string
-        byte[] str = new byte[memory.get(address)-1];
-        int offset = address+1;
-
-        // read codepoints
-        for(int i = 0; i<str.length; i++){
-            str[i] = (byte)(int)memory.get(offset + i);
-        }
-
-        // convert codepoints to string object
-        return new String(str);
-    }*/
 	
 }

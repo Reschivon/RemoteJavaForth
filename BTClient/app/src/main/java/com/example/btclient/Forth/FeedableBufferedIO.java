@@ -3,9 +3,10 @@ package com.example.btclient.Forth;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class FeedableBufferedIO extends BufferedIO {
-	public volatile List<String> nexttoks = new ArrayList<>();
+	private volatile List<String> nexttoks = new ArrayList<>();
 	
 	// end when next requested and tok buffer is empty
 	volatile boolean autoTerminate = false;
@@ -19,6 +20,14 @@ public class FeedableBufferedIO extends BufferedIO {
 		return true;
 	}
 	
+	// exclude the line feeds that could be sent through the input stream
+	String next_token(){
+		String next = next();
+		if(next.equals("\n") || next.equals(""))
+			return next_token();
+		return next;
+	}
+	
 	@Override
 	public String next() {
 		if (hasNext()) {
@@ -28,9 +37,14 @@ public class FeedableBufferedIO extends BufferedIO {
 	}
 	
 	@Override
-	public void feed(String line) {
+	public synchronized void feed(String line) {
 		String rep = line.trim().replaceAll("[^\\S ]+", " ").replaceAll("\\s+", " ");
 		nexttoks.addAll(Arrays.asList(rep.split(" ")));
+		
+		// if interactive, then each feed is called after user hits enter
+		if(!autoTerminate) {
+			nexttoks.add("\n");
+		}
 	}
 	
 	@Override
