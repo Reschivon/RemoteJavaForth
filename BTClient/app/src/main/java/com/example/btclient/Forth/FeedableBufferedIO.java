@@ -20,6 +20,10 @@ public class FeedableBufferedIO extends BufferedIO {
 		return true;
 	}
 	
+	public void setautoTerminate(boolean b){
+		autoTerminate = b;
+	}
+	
 	// exclude the line feeds that could be sent through the input stream
 	String next_token(){
 		String next = next();

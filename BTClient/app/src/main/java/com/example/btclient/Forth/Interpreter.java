@@ -2,7 +2,9 @@ package com.example.btclient.Forth;
 
 import com.example.btclient.ReplGraphics.GraphicsCore;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 
 
@@ -29,6 +31,13 @@ public class Interpreter {
 	private int thread_counter = 0;
 	HashMap<Integer, State> threads = new HashMap<>();
 	
+	static class deer{
+		public int h = 69;
+		public void g(){
+			System.out.println("solp");
+		}
+	}
+	
 	public static void main(String[] args) {
 		GraphicsCore graphics = new GraphicsCore();
 		
@@ -41,7 +50,8 @@ public class Interpreter {
 						System.out.print(string);
 					}
 				},
-				new Object());
+				new deer()
+		);
 		
 		Scanner scanner = new Scanner(System.in);
 		new Thread(() -> {
@@ -67,7 +77,7 @@ public class Interpreter {
 		State init_thread = threads.get(init_thread_id);
 		
 		init_thread.input.feed(startup);
-		init_thread.input.autoTerminate = true;
+		init_thread.input.setautoTerminate(true);
 		
 		outputln("Startup file found and run", init_thread.id);
 	}
@@ -82,7 +92,7 @@ public class Interpreter {
 			new Thread(() -> s.repl(-1)).start();
 		}else{
 			s = new State(this, action, id);
-			s.input.autoTerminate = true;
+			s.input.setautoTerminate(true);
 			new Thread(() -> s.repl(search_word(action))).start();
 		}
 		threads.put(thread_counter, s);
@@ -119,14 +129,16 @@ public class Interpreter {
 		output(s.toString() + "\n", id);
 	}
 	
+	//fuck!
+	List<String> string_pool = new ArrayList<>();
+	
 	{
 		declarePrimitive( "new" , state -> {}); /*newOperator();*/
-		declarePrimitive( "->" , state -> {
+		declarePrimitive( "dodot" , state -> {
+			// index of field or class
+			String fieldOrClass = string_pool.get(state.stack.pop());
 			// the calling object
 			Object actor = state.getObject();
-			// the name of the object's field or method
-			String fieldOrClass = state.input.next_token();
-			
 			try {
 				ReflectionMachine.dot_operator(actor, fieldOrClass, state);
 			} catch (IllegalAccessException e) {
@@ -134,9 +146,32 @@ public class Interpreter {
 			} catch (InvocationTargetException e) {
 				e.printStackTrace();
 			}
+			
 		});
-		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject(), s->outputln(s, state.id)));
-		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject(), s->outputln(s, state.id)));
+		declarePrimitive( "->" , state -> {
+			if(state.immediate.get()) {
+				// the calling object
+				Object actor = state.getObject();
+				// the name of the object's field or method
+				String fieldOrClass = state.input.next_token();
+				
+				try {
+					ReflectionMachine.dot_operator(actor, fieldOrClass, state);
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				} catch (InvocationTargetException e) {
+					e.printStackTrace();
+				}
+			}else{
+				// index of field or class
+				memory.add(state.origin.search_word("lit"));
+				string_pool.add(state.input.next());
+				memory.add(string_pool.size()-1);
+				memory.add(state.origin.search_word("dodot"));
+			}
+		}, true);
+		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject(), state));
+		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject(), state));
 		declarePrimitive( "objects" , state -> {
 			for (Object tok : state.objects)
 				output(tok.getClass().getName() + " ", state.id);
@@ -215,9 +250,9 @@ public class Interpreter {
 			// so the current user thread will never end
 			// while the user is using it
 			if(!current_thread.name.equals("default"))
-				current_thread.input.autoTerminate = true;
+				current_thread.input.setautoTerminate(true);
 			current_thread = threads.get(state.stack.pop());
-			current_thread.input.autoTerminate = false;
+			current_thread.input.setautoTerminate(false);
 		});
 		declarePrimitive("stop-thread", state -> threads.get(state.stack.pop()).stop());
 		//TODO make less crude
