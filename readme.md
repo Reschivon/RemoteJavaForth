@@ -122,7 +122,7 @@ This is one of the pain points of Java Reflection; lazy loaded classes prevent u
   
 Now we have a dog of `age` 9 and `fur_darkness` 42 on stack  
 I'm going to set its darkness to 50  
-`dup 50 set fur_darkness`  
+`dup 50 swap set fur_darkness`  
   
 Let's get a newborn dog via the `offspring` method  
 `native -> offspring`  
