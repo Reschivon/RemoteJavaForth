@@ -11,4 +11,5 @@ public class XYRPlot implements DataHandler {
 	public XYRPlot(){
 	
 	}
+	
 }
