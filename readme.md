@@ -105,46 +105,29 @@ class dog{
     return offspring;
   }
 }
-```
-Now I'm going to put the value of `age` on stack
-
-`native -> age`
-
-
-See! easy! Now we have 42 on stack
-
-
-Let's set `age`
-
-`7 native set age`
-
-
-If we were to print the age in human years:
-
-`native -> human_years .` then 49 would be shown
-
-
-Let's create a new dog object
-
-`new dog`
-
-
-Now we have a dog of `age` 9 and `fur_darkness` 42 on stack
-
-I'm going to set its darkness to 50
-
-`50 dup set fur_darkness`
-
-
-Let's get a newborn dog via the `offspring` method
-
-`native -> offspring`
-
-This takes the recently created dog object from stack and passes it as a parameter. We get a new dog returned and pushed to stack
-
-
-Let's check it's `fur_darkness`
-
-`-> fur_darkness .`
-
-We get 46, which is the average of the first two dogs, as expected
+```  
+Now I'm going to put the value of `age` on stack  
+`native -> age`  
+See! easy! Now we have 42 on stack  
+  
+Let's set `age`  
+`7 native set age`  
+  
+If we were to print the age in human years:  
+`native -> human_years .` then 49 would be shown  
+  
+Let's create a new dog object  
+`new dog`  
+  
+Now we have a dog of `age` 9 and `fur_darkness` 42 on stack  
+I'm going to set its darkness to 50  
+`50 dup set fur_darkness`  
+  
+Let's get a newborn dog via the `offspring` method  
+`native -> offspring`  
+This takes the recently created dog object from stack and passes it as a parameter. We get a new dog returned and pushed to stack  
+  
+Let's check it's `fur_darkness`  
+`-> fur_darkness .`  
+We get 46, which is the average of the first two dogs, as expected  
+  
