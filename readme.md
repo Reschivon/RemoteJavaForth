@@ -81,12 +81,12 @@ Java objects are handled by pointers to negative addresses on the stack. Relevan
 
 Use `native` to push on stack the native Java object defined in the Java code above
 
-The `->` word pops a Java object from stack and pulls the next token from the input stream. 
-a. If the token matches a field of the Java object and the field is type `Integer` then the field value will be pushed to stack. 
-b. If no field is found but the token matches a method of the Java object, then the method is invoked. Integer parameters are pulled sequentially from the stack; Object parameters are pulled likewise (negative addresses representing Java objects are magically converted to objects). Then, if there is a return value for the method of type Integer the value is pushed to stack. If the return is type Object then an object is pushed to stack.
+The `->` word pops a Java object from stack and pulls the next token from the input stream.   
+a. If the token matches a field of the Java object and the field is type `Integer` then the field value will be pushed to stack.   
+b. If no field is found but the token matches a method of the Java object, then the method is invoked. Integer parameters are pulled sequentially from the stack; Object parameters are pulled likewise (negative addresses representing Java objects are magically converted to objects). Then, if there is a return value for the method of type Integer the value is pushed to stack. If the return is type Object then an object is pushed to stack.  
 
-The functionality of `->` is very intutive, please don't be scared by the above. Let's do an example
-My Java native object is of this class:
+The functionality of `->` is very intutive, don't be scared.  
+Let's do an example with this object specified as native  
 ```
 class dog{
   int age = 9;
@@ -130,4 +130,6 @@ This takes the recently created dog object from stack and passes it as a paramet
 Let's check it's `fur_darkness`  
 `-> fur_darkness .`  
 We get 46, which is the average of the first two dogs, as expected  
+    
   
+  `->` changes its behavior accordingly when compiled, such that "it just works"
