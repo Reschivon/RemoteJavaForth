@@ -116,8 +116,9 @@ Let's set `age`
 If we were to then print the age in human years:  
 `native -> human_years .` then 49 would be shown  
   
-Let's create a new dog object  
-`new dog`  
+Let's create a new dog object.  
+`new com.example.btclient.Forth.Interpreter$dog`  
+This is one of the pain points of Java Reflection; lazy loaded classes prevent us from using cimple class names  
   
 Now we have a dog of `age` 9 and `fur_darkness` 42 on stack  
 I'm going to set its darkness to 50  
