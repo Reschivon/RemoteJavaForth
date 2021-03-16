@@ -182,7 +182,6 @@ public class Interpreter {
 				String classname = state.input.next_token();
 				ReflectionMachine.new_operator(classname, state);
 			}else{
-				// index of field or class
 				memory.add(state.origin.search_word("lit"));
 				string_pool.add(state.input.next_token());
 				memory.add(string_pool.size()-1);
