@@ -79,12 +79,14 @@ Here is the structure of one word in memory
 The memory is a Java 32-bit integer array, which means that pointers point to indicies within this array rather than absolute memory locations. 
 Java objects are handled by pointers to negative addresses on the stack. Relevant primitives know how to convert negative addresses into objects; the user can conceptually pretend that objects are kept on the stack like any other stack data.
 
+
+## Interop
 Use `native` to push on stack the native Java object defined in the Java code above
 
 The `->` word pops a Java object from stack and pulls the next token from the input stream.   
 a. If the token matches a field of the Java object and the field is type `Integer` then the field value will be pushed to stack.   
 b. If no field is found but the token matches a method of the Java object, then the method is invoked. Integer parameters are pulled sequentially from the stack; Object parameters are pulled likewise (negative addresses representing Java objects are magically converted to objects). Then, if there is a return value for the method of type Integer the value is pushed to stack. If the return is type Object then an object is pushed to stack.  
-
+  
 The functionality of `->` is very intutive, don't be scared.  
 Let's do an example with this object specified as native  
 ```
