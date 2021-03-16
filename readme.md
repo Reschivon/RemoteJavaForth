@@ -108,12 +108,12 @@ class dog{
 ```  
 Now I'm going to put the value of `age` on stack  
 `native -> age`  
-See! easy! Now we have 42 on stack  
+See! easy! Now we have 9 on stack  
   
 Let's set `age`  
 `7 native set age`  
   
-If we were to print the age in human years:  
+If we were to then print the age in human years:  
 `native -> human_years .` then 49 would be shown  
   
 Let's create a new dog object  
