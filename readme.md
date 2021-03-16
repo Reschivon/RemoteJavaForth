@@ -24,7 +24,7 @@ On the remote client machine:
 Ensure that that MAC address specified in the remote client code below is the MAC address for you host
 
 MainActivity.java
-```
+```java
 public class MainActivity extends Activity {
 
   BluetoothClient bluetoothClient;
@@ -89,7 +89,7 @@ b. If no field is found but the token matches a method of the Java object, then 
   
 The functionality of `->` is very intutive, don't be scared.  
 Let's do an example with this object specified as native  
-```
+```java
 class dog{
   int age = 9;
   int fur_darkness = 42;
