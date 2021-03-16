@@ -1,16 +1,24 @@
 package com.example.btclient.Forth;
 
+import dalvik.system.DexFile;
+
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public class ReflectionMachine {
-	static Object getByString(Object actor, String name){
+	static Field getField(Object actor, String name){
 		Field f = null;
 		try {
 			f = actor.getClass().getField(name);
 		} catch (NoSuchFieldException ignored) {
 		}
+		
+		return f;
+	}
+	static Object getByString(Object actor, String name){
+		Field f = getField(actor, name);
 		
 		Method m = null;
 		for(Method p:actor.getClass().getMethods()){
@@ -44,8 +52,25 @@ public class ReflectionMachine {
 		o.origin.outputln("", o.id);
 	}
 	
+	public static void set_operator(Object actor, String field, int val, State state){ try{
+		// get actual type of attribute
+		Field theField = ReflectionMachine.getField(actor, field);
+		
+		if (theField == null) {
+			state.origin.outputln("field or class " + field + " not found as field", state.id);
+		}
+		
+		if(val >= 0){ // It's an integer
+			theField.setInt(actor, val);
+		}else{ // It's an object
+			theField.set(actor, state.objects.get((-val)-1));
+		}
+		
+	}catch(Exception e){
+		state.origin.outputln("Something went wrong, see if the new value is right type", state.id);
+	}}
 	
-	public static void dot_operator(Object actor, String fieldOrClass, State state) throws IllegalAccessException, InvocationTargetException {
+	public static void dot_operator(Object actor, String fieldOrClass, State state){ try{
 		// get actual type of attribute
 		Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
 		
@@ -87,6 +112,51 @@ public class ReflectionMachine {
 				state.addObject(thefield.get(actor));
 			}
 		}
+	}catch(Exception e){
+		state.origin.outputln("Something went wrong, you're on your own", state.id);
+	}}
+	
+	public static void new_operator(String classname, State state) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+		Constructor[] constructors;
+		try {
+			constructors = Class.forName(classname).getConstructors();
+		} catch (ClassNotFoundException e) {
+			state.origin.outputln(classname + " was not found. Fully qualified names required", state.id);
+			return;
+		}
+		
+		if (constructors.length != 0) {
+			Class[] o = constructors[0].getParameterTypes();
+			for (Class i : o)
+				state.origin.output(i + " ", state.id);
+		}else{
+			// no arg constructor
+			try {
+				state.addObject(Class.forName(classname).newInstance());
+				return;
+			} catch (ClassNotFoundException ignored){
+				// never happens, we checked earlier
+			}
+		}
+
+        Object[] params = new Object[constructors[0].getParameterTypes().length];
+        for(int i=0; i<params.length; i++){
+            params[i] = state.stack.pop();
+        }
+        try {
+			state.addObject(constructors[0].newInstance(params));
+		} catch (IllegalArgumentException e){
+			state.origin.outputln("Creation failed. Expected constructor args: ", state.id);
+			if (constructors.length != 0) {
+				Class[] o = constructors[0].getParameterTypes();
+				for (Class i : o)
+					state.origin.output(i + " ", state.id);
+			}
+		}
+    }
+	
+	public static void classes(State state){
+	
 	}
 	
 }

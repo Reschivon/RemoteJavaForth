@@ -2,9 +2,6 @@ package com.example.btclient.Forth;
 
 import com.example.btclient.ReplGraphics.GraphicsCore;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.*;
 
 
@@ -23,7 +20,7 @@ public class Interpreter {
 	Object nativeRoot = null;
 	public void setNativeRoot(Object o){nativeRoot = o;}
 	// link up names of primitives to their java code
-	HashMap<Integer, Consumer<State>> primitives = new HashMap<>();
+	HashMap<Integer, ConsumerWithException<State>> primitives = new HashMap<>();
 	
 	HashMap<Integer, String> primitive_names = new HashMap<>();
 	
@@ -31,10 +28,21 @@ public class Interpreter {
 	private int thread_counter = 0;
 	HashMap<Integer, State> threads = new HashMap<>();
 	
-	static class deer{
-		public int h = 69;
-		public void g(){
-			System.out.println("solp");
+	static class dog{
+		public int age = 9;
+		public int fur_darkness = 42;
+		
+		public int human_years(){
+			return age * 7;
+		}
+		
+		public dog offspring(dog mate){
+			dog offspring = new dog();
+			offspring.fur_darkness
+					= (mate.fur_darkness + fur_darkness) / 2;
+			offspring.age = 1;
+			
+			return offspring;
 		}
 	}
 	
@@ -50,7 +58,7 @@ public class Interpreter {
 						System.out.print(string);
 					}
 				},
-				new deer()
+				new dog()
 		);
 		
 		Scanner scanner = new Scanner(System.in);
@@ -79,7 +87,8 @@ public class Interpreter {
 		init_thread.input.feed(startup);
 		init_thread.input.setautoTerminate(true);
 		
-		outputln("Startup file found and run", init_thread.id);
+		// wait for init thread to finish
+		while (threads.containsKey(init_thread_id)){}
 	}
 	
 	public int new_thread(String action){
@@ -133,39 +142,64 @@ public class Interpreter {
 	List<String> string_pool = new ArrayList<>();
 	
 	{
-		declarePrimitive( "new" , state -> {}); /*newOperator();*/
+		declarePrimitive( "set" , state -> {
+			if(state.immediate.get()) {
+				// the calling object
+				Object actor = state.getObject();
+				// the name of the object's field or method
+				String fieldOrClass = state.input.next_token();
+				ReflectionMachine.set_operator(actor, fieldOrClass, state.stack.pop(), state);
+			}else{
+				// index of field or class
+				memory.add(state.origin.search_word("lit"));
+				string_pool.add(state.input.next_token());
+				memory.add(string_pool.size()-1);
+				memory.add(state.origin.search_word("doset"));
+			}
+		}, true);
+		declarePrimitive( "doset" , state -> {
+			// classname
+			String field_name = string_pool.get(state.stack.pop());
+			// the calling object
+			Object actor = state.getObject();
+			ReflectionMachine.set_operator(actor, field_name, state.stack.pop(), state);
+		});
+		declarePrimitive( "donew" , state -> {
+			// classname
+			String classname = string_pool.get(state.stack.pop());
+			ReflectionMachine.new_operator(classname, state);
+		});
 		declarePrimitive( "dodot" , state -> {
 			// index of field or class
 			String fieldOrClass = string_pool.get(state.stack.pop());
 			// the calling object
 			Object actor = state.getObject();
-			try {
-				ReflectionMachine.dot_operator(actor, fieldOrClass, state);
-			} catch (IllegalAccessException e) {
-				e.printStackTrace();
-			} catch (InvocationTargetException e) {
-				e.printStackTrace();
-			}
-			
+			ReflectionMachine.dot_operator(actor, fieldOrClass, state);
 		});
+		declarePrimitive( "new" , state -> {
+			if(state.immediate.get()) {
+				// classname
+				String classname = state.input.next_token();
+				ReflectionMachine.new_operator(classname, state);
+			}else{
+				// index of field or class
+				memory.add(state.origin.search_word("lit"));
+				string_pool.add(state.input.next_token());
+				memory.add(string_pool.size()-1);
+				memory.add(state.origin.search_word("donew"));
+			}
+		}, true);
 		declarePrimitive( "->" , state -> {
 			if(state.immediate.get()) {
 				// the calling object
 				Object actor = state.getObject();
 				// the name of the object's field or method
 				String fieldOrClass = state.input.next_token();
-				
-				try {
-					ReflectionMachine.dot_operator(actor, fieldOrClass, state);
-				} catch (IllegalAccessException e) {
-					e.printStackTrace();
-				} catch (InvocationTargetException e) {
-					e.printStackTrace();
-				}
+				ReflectionMachine.dot_operator(actor, fieldOrClass, state);
 			}else{
 				// index of field or class
 				memory.add(state.origin.search_word("lit"));
-				string_pool.add(state.input.next());
+				string_pool.add(state.input.next_token());
 				memory.add(string_pool.size()-1);
 				memory.add(state.origin.search_word("dodot"));
 			}
@@ -287,29 +321,7 @@ public class Interpreter {
 		memory.add(-2);
 	}
 
-    /*void newOperator() throws IllegalAccessException, InvocationTargetException, InstantiationException {
-        String classname = input.next();
-        Constructor[] constructors;
-            try {
-        constructors = Class.forName(classname).getConstructors();
-            } catch (ClassNotFoundException e){
-                outputln(classname + " was not found. Fully qualified names required");
-        return;
-            }
-
-        outputln("Constructor params: ");
-        Class[] o = constructors[0].getParameterTypes();
-        for(Class i:o){
-            output(i + " ");
-        }
-
-        Object[] params = new Object[constructors[0].getParameterTypes().length];
-        for(int i=0; i<params.length; i++){
-            params[i] = stack.pop();
-        }
-        addObject(constructors[0].newInstance(params));
-    }
-*/
+ 
 	// (caller object '' name of attribute -- return value or address of returned object)
 	
 	/**
@@ -490,7 +502,7 @@ public class Interpreter {
 	 * See other definition of declare primitive. Defaults
 	 * to non-immediate
 	 */
-	void declarePrimitive(String name, Consumer<State> r) {
+	void declarePrimitive(String name, ConsumerWithException<State> r) {
 		declarePrimitive(name, r, false);
 	}
 	
@@ -499,7 +511,7 @@ public class Interpreter {
 	 * @param name name of word
 	 * @param immediate Flags for immediate word
 	 */
-	void declarePrimitive(String name, Consumer<State> r, boolean immediate) {   // add link in linked list
+	void declarePrimitive(String name, ConsumerWithException<State> r, boolean immediate) {   // add link in linked list
 		create(name);
 		
 		// register word as primitive
@@ -711,7 +723,15 @@ public class Interpreter {
 				"22 pies !",
 				"pies @ .",
 				
-				": go begin 42 . 1500 wait again ;"
+				": go begin 42 . 1500 wait again ;",
+
+				"native -> age 2 + .",
+				"7 native set age",
+				"native -> human_years 27 - .",
+				"new com.example.btclient.Forth.Interpreter$dog",
+				"dup 50 swap set fur_darkness",
+				"native -> offspring",
+				"-> fur_darkness 35 - ."
 
 //                "async greet",
 //                "th@s"

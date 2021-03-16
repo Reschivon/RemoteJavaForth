@@ -1,8 +1,5 @@
 package com.example.btclient.Forth;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +26,7 @@ public class State {
 	int id;
 	
 	private List<Integer> memory;
-	private HashMap<Integer, Consumer<State>> primitives;
+	private HashMap<Integer, ConsumerWithException<State>> primitives;
 	
 	public State(Interpreter i, String name, int id){
 		this.name = name;
