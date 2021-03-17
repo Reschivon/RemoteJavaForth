@@ -102,7 +102,7 @@ public class State {
 		
 		//is carriage return
 		if(next_word.equals("\n")) {
-			System.out.print("OK " + (immediate.get()?"IMMT":"CMPL") + " STK:" + stack.size() + " >");
+			System.out.print("OK " + "STK:" + stack.size() + " " + (immediate.get()?"":"CMPL") + ">");
 			return;
 		}
 		

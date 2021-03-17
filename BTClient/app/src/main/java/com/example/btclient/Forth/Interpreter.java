@@ -312,9 +312,7 @@ public class Interpreter {
 			int jmp = memory.get(state.call_stack.last());
 			
 			state.call_stack.setLast(jmp);
-		});declarePrimitive("seer", state ->{
-		System.out.println(memory);
-	});
+		});
 		declarePrimitive("interpret", State::interpret);
 		declarePrimitive("greet", state -> outputln("\\xyrplot 4 4 0.5", state.id));
 		declarePrimitive("stop", State::stop);
@@ -347,11 +345,6 @@ public class Interpreter {
 		
 		create(":");
 		memory.add(search_word("(create)"));
-		// These are part of create now
-//		memory.add(search_word("token>memory"));
-//		memory.add(search_word("lit"));
-//		memory.add(0);
-//		memory.add(search_word(","));
 		memory.add(search_word("]"));
 		memory.add(search_word("exit"));
 		
@@ -490,7 +483,6 @@ public class Interpreter {
 			for(int j=instruction_address; j<nextop; j++)
 			{   // derive name from address
 				int mem = memory.get(j);
-				System.out.print("m: " + mem);
 				String name = read_string(mem);
 				
 				//stop iterating if return encountered
@@ -783,9 +775,6 @@ public class Interpreter {
 				": deer create , does> @ . 11 . 22 . ;",
 				"22 deer ok",
 				"ok"
-				
-				//": variable create  0 , ;"
-				
 		);
 	}
 }

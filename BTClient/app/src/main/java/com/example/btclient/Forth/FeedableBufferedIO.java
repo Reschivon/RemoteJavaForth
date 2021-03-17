@@ -16,6 +16,12 @@ public class FeedableBufferedIO extends BufferedIO {
 		while (nexttoks.size() == 0) {
 			if (done || autoTerminate)
 				return false;
+			
+			//shit //TODO make less crappy
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+			}
 		}
 		return true;
 	}
