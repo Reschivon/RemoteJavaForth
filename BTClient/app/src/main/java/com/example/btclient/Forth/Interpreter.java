@@ -282,10 +282,11 @@ public class Interpreter {
 			memory.add(search_word("lit"));
 			memory.add(memory.size() + 3);
 			
-			memory.add(search_word("return"));
+			memory.add(search_word("exit"));
 			
 			// placeholder for possible dodoes jmp address
 			memory.add(0);
+			
 		});
 		declarePrimitive( "branch" , state -> //advance pointer by instruction at current pointer position
 				state.call_stack.set(state.call_stack.size() - 1, state.call_stack.last() + memory.get(state.call_stack.last() + 1)));
@@ -489,6 +490,7 @@ public class Interpreter {
 			for(int j=instruction_address; j<nextop; j++)
 			{   // derive name from address
 				int mem = memory.get(j);
+				System.out.print("m: " + mem);
 				String name = read_string(mem);
 				
 				//stop iterating if return encountered
@@ -726,29 +728,9 @@ public class Interpreter {
 				
 				"( TODO: functionality to nest parentheses )",
 				
-				": constant ( initial_value '' constant_name -- )",
-				"        	(create)             ( ! up a new word )",
-//				"        	token>memory",
-//				"        	0 ,",
+				": constant create , does> @ ;",
 				
-				"        	postpone lit    ( add lit instruction to variable definition )",
-				"        	,           ( append initial value to memory )",
-				"        	postpone exit     ( add exit instruction to constant definition )",
-				";",
-				
-				": variable ( initial_value '' variable_name -- )",
-				"        	here         ( push memory address to stack )",
-				"        	swap",
-				"        	here !     ( append top of stack to memory )",
-				
-				"        	(create)              ( ! up a new word )",
-//				"        	token>memory",
-//				"        	0 ,",
-				
-				"        	postpone lit    	( add lit instruction to variable definition )",
-				"        	,           ( append pointer to memory )",
-				"        	postpone exit     ( add exit instruction to variable definition )",
-				";",
+				": variable create 0 , does> ;",
 				
 				": iftest if 22 . else 11 . then ;",
 				
@@ -781,7 +763,8 @@ public class Interpreter {
 				"22 constant burgers",
 				"burgers .",
 				
-				"11 variable pies",
+				"variable pies",
+				"11 pies !",
 				"pies @ .",
 				
 				"22 pies !",
@@ -797,13 +780,12 @@ public class Interpreter {
 				"native -> offspring",
 				"-> fur_darkness 35 - .",
 
-				": deer create , does> @ . 22 . 11 . ;",
-				"420 deer ko"
-				//"ko ."
-//"ko"
-
-//                "async greet",
-//                "this"
+				": deer create , does> @ . 11 . 22 . ;",
+				"22 deer ok",
+				"ok"
+				
+				//": variable create  0 , ;"
+				
 		);
 	}
 }
