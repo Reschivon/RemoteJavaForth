@@ -223,7 +223,10 @@ public class Interpreter {
 		declarePrimitive( "." , state -> outputln(state.stack.pop(), state.id));
 		declarePrimitive( "exit" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
 		declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next_token())));
-		declarePrimitive( "," , state -> memory.add(state.stack.pop()));
+		declarePrimitive( "," , state -> {
+			memory.add(state.stack.pop());
+			//System.out.println("set m " + (memory.size()-1));
+		});
 		declarePrimitive( "[" , state -> state.immediate.set(true), true);
 		declarePrimitive( "]" , state -> state.immediate.set(false));
 		declarePrimitive( "lit" , state -> {
@@ -255,8 +258,15 @@ public class Interpreter {
 		declarePrimitive( "token>memory" , state -> write_string(state.input.next_token(), memory.size()));
 		declarePrimitive( "print-string" , state -> outputln(read_string(state.stack.pop()), state.id));
 		declarePrimitive( "create" , state -> {
+			// update link
 			memory.add(HERE);
 			HERE = memory.size();
+			
+			//write next token to memory (basically token>memory)
+			write_string(state.input.next_token(), memory.size());
+			//add immediate flag
+			memory.add(0);
+			
 		});
 		declarePrimitive( "branch" , state -> //advance pointer by instruction at current pointer position
 				state.call_stack.set(state.call_stack.size() - 1, state.call_stack.last() + memory.get(state.call_stack.last() + 1)));
@@ -267,6 +277,19 @@ public class Interpreter {
 				state.call_stack.incrementLast();
 			state.stack.pop();
 		});
+		declarePrimitive("does>", state -> {
+			memory.add(search_word("dodoes"));
+			memory.add(state.call_stack.pop());
+		});
+		declarePrimitive("dodoes", state -> {
+			// next number in memory
+			state.call_stack.incrementLast();
+			int jmp = memory.get(state.call_stack.last());
+			
+			state.call_stack.setLast(jmp);
+		});declarePrimitive("seer", state ->{
+		System.out.println(memory);
+	});
 		declarePrimitive("interpret", State::interpret);
 		declarePrimitive("greet", state -> outputln("\\xyrplot 4 4 0.5", state.id));
 		declarePrimitive("stop", State::stop);
@@ -299,10 +322,11 @@ public class Interpreter {
 		
 		create(":");
 		memory.add(search_word("create"));
-		memory.add(search_word("token>memory"));
-		memory.add(search_word("lit"));
-		memory.add(0);
-		memory.add(search_word(","));
+		// These are part of create now
+//		memory.add(search_word("token>memory"));
+//		memory.add(search_word("lit"));
+//		memory.add(0);
+//		memory.add(search_word(","));
 		memory.add(search_word("]"));
 		memory.add(search_word("exit"));
 		
@@ -378,7 +402,7 @@ public class Interpreter {
 			int here = HERE;
 			while(here != -1){
 				String word_name = read_string(here);
-				output(word_name + " ", id);
+				output(here + " " + word_name + " ", id);
 				
 				//move to next word in linked list
 				here = memory.get(here-1);
@@ -414,13 +438,20 @@ public class Interpreter {
 			
 			int immediate = memory.get(word_address + memory.get(word_address));
 			
-			String setPlainText = "\033[0;0m";
-			String setBoldText = "\033[0;1m";
+			int first_op = word_address + memory.get(word_address) + 1;
+			
+//			String setPlainText = "\033[0;0m";
+//			String setBoldText = "\033[0;1m";
+			String setPlainText = "";
+			String setBoldText = "";
 			output(
 					String.format(
-							"%-25s %d %s ",
-							setBoldText + word_name + setPlainText, word_address,
-							immediate==1?"immdt":"     "),
+							"%d %s %s %d ",
+							word_address,
+							setBoldText + word_name + setPlainText,
+							immediate==1?"immdt":"     ",
+							first_op
+							),
 					id);
 			
 			// first opcode of the word
@@ -443,7 +474,10 @@ public class Interpreter {
 				output(name + " ", id);
 				
 				// special condition if next element is read as lit
-				if(name.equals("lit") || name.equals("branch") || name.equals("branch?"))
+				if(name.equals("lit") ||
+						name.equals("branch") ||
+						name.equals("branch?") ||
+						name.equals("dodoes"))
 				{
 					j++;
 					output(memory.get(j) + " ", id);
@@ -663,8 +697,8 @@ public class Interpreter {
 				
 				": constant ( initial_value '' constant_name -- )",
 				"        	create              ( ! up a new word )",
-				"        	token>memory",
-				"        	0 ,",
+//				"        	token>memory",
+//				"        	0 ,",
 				
 				"        	postpone lit    ( add lit instruction to variable definition )",
 				"        	,           ( append initial value to memory )",
@@ -677,8 +711,8 @@ public class Interpreter {
 				"        	here !     ( append top of stack to memory )",
 				
 				"        	create              ( ! up a new word )",
-				"        	token>memory",
-				"        	0 ,",
+//				"        	token>memory",
+//				"        	0 ,",
 				
 				"        	postpone lit    	( add lit instruction to variable definition )",
 				"        	,           ( append pointer to memory )",
@@ -712,7 +746,7 @@ public class Interpreter {
 				"( cannot nest parentheses )",
 				
 				"( You can enable aggressive error messages with the word 'profanity' )",
-				
+
 				"22 constant burgers",
 				"burgers .",
 				
@@ -730,10 +764,15 @@ public class Interpreter {
 				"new com.example.btclient.Forth.Interpreter$dog",
 				"dup 50 swap set fur_darkness",
 				"native -> offspring",
-				"-> fur_darkness 35 - ."
+				"-> fur_darkness 35 - .",
+
+				": deer create does> 22 . 11 . ;",
+				"deer ko",
+				"ko"
+//"ko"
 
 //                "async greet",
-//                "th@s"
+//                "this"
 		);
 	}
 }

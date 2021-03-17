@@ -74,7 +74,8 @@ public class State {
 			
 			// primitive or forth word?
 			if(exec_primitive(word_address)) {
-			
+				//System.out.println("exec prim at " + origin.primitive_names.get(word_address));
+				
 			}else{
 				// execute forth word
 				//System.out.println("exec forth" + origin.read_string(word_address));
@@ -146,10 +147,10 @@ public class State {
 			
 			// execute
 			if(a || b){
-				//System.out.println("\tinterpret places " + origin.read_string(address) + " on stack");
 				if(exec_primitive(address)){
-
+				
 				}else {
+					//System.out.println("\tinterpret places " + origin.read_string(address) + " on stack " + address);
 					call_stack.add(address + memory.get(address));
 				}
 			}else{
