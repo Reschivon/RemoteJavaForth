@@ -257,6 +257,18 @@ public class Interpreter {
 		
 		declarePrimitive( "token>memory" , state -> write_string(state.input.next_token(), memory.size()));
 		declarePrimitive( "print-string" , state -> outputln(read_string(state.stack.pop()), state.id));
+		declarePrimitive( "(create)" , state -> {
+			// update link
+			memory.add(HERE);
+			HERE = memory.size();
+			
+			//write next token to memory (basically token>memory)
+			write_string(state.input.next_token(), memory.size());
+			//add immediate flag
+			memory.add(0);
+			
+		});
+		//create used for user code. dirty //TODO make less bad
 		declarePrimitive( "create" , state -> {
 			// update link
 			memory.add(HERE);
@@ -267,6 +279,13 @@ public class Interpreter {
 			//add immediate flag
 			memory.add(0);
 			
+			memory.add(search_word("lit"));
+			memory.add(memory.size() + 3);
+			
+			memory.add(search_word("return"));
+			
+			// placeholder for possible dodoes jmp address
+			memory.add(0);
 		});
 		declarePrimitive( "branch" , state -> //advance pointer by instruction at current pointer position
 				state.call_stack.set(state.call_stack.size() - 1, state.call_stack.last() + memory.get(state.call_stack.last() + 1)));
@@ -278,8 +297,13 @@ public class Interpreter {
 			state.stack.pop();
 		});
 		declarePrimitive("does>", state -> {
-			memory.add(search_word("dodoes"));
-			memory.add(state.call_stack.pop());
+			// in the wake of create, memory looks like this
+			// HEADER LIT <body addr> return <empty for jmp addr> <body val>
+			// 																^memory.size()/latest
+			//replace return of most recent word with dodoes
+			memory.set(memory.size()-3, search_word("dodoes"));
+			// have dodoes point to the words after does>
+			memory.set(memory.size()-2, state.call_stack.pop());
 		});
 		declarePrimitive("dodoes", state -> {
 			// next number in memory
@@ -321,7 +345,7 @@ public class Interpreter {
 		});
 		
 		create(":");
-		memory.add(search_word("create"));
+		memory.add(search_word("(create)"));
 		// These are part of create now
 //		memory.add(search_word("token>memory"));
 //		memory.add(search_word("lit"));
@@ -470,6 +494,13 @@ public class Interpreter {
 				//stop iterating if return encountered
 				if(name.equals("exit"))
 					break;
+				
+				//dodoes encountered
+				if(name.equals("dodoes")){
+					output("dodoes->", id);
+					j = memory.get(j+1);
+					continue;
+				}
 				
 				output(name + " ", id);
 				
@@ -696,7 +727,7 @@ public class Interpreter {
 				"( TODO: functionality to nest parentheses )",
 				
 				": constant ( initial_value '' constant_name -- )",
-				"        	create              ( ! up a new word )",
+				"        	(create)             ( ! up a new word )",
 //				"        	token>memory",
 //				"        	0 ,",
 				
@@ -710,7 +741,7 @@ public class Interpreter {
 				"        	swap",
 				"        	here !     ( append top of stack to memory )",
 				
-				"        	create              ( ! up a new word )",
+				"        	(create)              ( ! up a new word )",
 //				"        	token>memory",
 //				"        	0 ,",
 				
@@ -766,9 +797,9 @@ public class Interpreter {
 				"native -> offspring",
 				"-> fur_darkness 35 - .",
 
-				": deer create does> 22 . 11 . ;",
-				"deer ko",
-				"ko"
+				": deer create , does> @ . 22 . 11 . ;",
+				"420 deer ko"
+				//"ko ."
 //"ko"
 
 //                "async greet",
