@@ -105,7 +105,12 @@ public class State {
 		
 		// if it's a number, then deal with the number and skip to next
 		try{
-			int val = Integer.parseInt(next_word);
+			int val;
+			if(next_word.indexOf('.') == -1) // is int
+			 	val = Integer.parseInt(next_word);
+			else
+				val = Float.floatToIntBits(Float.parseFloat(next_word));
+
 			if(immediate.get()) {
 				stack.add(val);
 			}else{
@@ -113,7 +118,8 @@ public class State {
 				memory.add(val);
 			}
 			return;
-		}catch(NumberFormatException ignored){}
+		}catch(NumberFormatException ignored){
+		}
 		
 		// it is a token, not a number
 		// find address of word identified by token
@@ -126,22 +132,12 @@ public class State {
 		}else{
 			// word found
 			// is compiled or executed?
-			boolean a = false,b = false;
-			
-			if(immediate.get()) {
-				a = true;
-				//System.out.println("\timmediate state");
-			}
-			if(memory.get(origin.addressToFlag(address)) == 1) {
-				b = true;
-				//System.out.println("\tword is flagged immediate");
-			}
-			
+
 			// execute
-			if(a || b){
+			if(immediate.get() || memory.get(origin.addressToFlag(address)) == 1){
 				if(exec_primitive(address)){
 				
-				}else {
+				}else { // not a primitive
 					//System.out.println("\tinterpret places " + origin.read_string(address) + " on stack " + address);
 					call_stack.add(address + memory.get(address));
 				}
@@ -152,6 +148,7 @@ public class State {
 			}
 		}
 	}
+
 	//return true if primitive exists
 	private boolean exec_primitive(int address){
 		if(primitives.containsKey(address)){
@@ -162,15 +159,16 @@ public class State {
 				e.printStackTrace();
 			}
 			return true;
-		} else {
-			return false;
 		}
+
+		return false;
 	}
 	
 	void addObject(Object o){
 		objects.add(o);
 		stack.add(-objects.size());
 	}
+
 	Object getObject(){
 		return objects.get( (-stack.pop())-1 );
 	}

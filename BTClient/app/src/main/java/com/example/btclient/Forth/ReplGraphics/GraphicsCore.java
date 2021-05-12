@@ -1,6 +1,6 @@
-package com.example.btclient.ReplGraphics;
+package com.example.btclient.Forth.ReplGraphics;
 
-import com.example.btclient.ReplGraphics.XYRPlot.XYRPlot;
+import com.example.btclient.Forth.ReplGraphics.XYRPlot.ValLabel;
 
 import java.util.HashMap;
 
@@ -9,7 +9,7 @@ public class GraphicsCore {
 	HashMap<String, Supplier<DataHandler>> data_handlers = new HashMap<>();
 
 	public GraphicsCore(){
-		data_handlers.put("xyrplot", XYRPlot::new);
+		data_handlers.put("label", () -> new ValLabel(this));
 	}
 	
 	public void feed (String line){
@@ -21,5 +21,9 @@ public class GraphicsCore {
 		}
 		data_handler_objects.get(target_component).accept(target_parameters);
 		
+	}
+
+	public void remove_object(DataHandler d){
+		data_handler_objects.remove(d);
 	}
 }

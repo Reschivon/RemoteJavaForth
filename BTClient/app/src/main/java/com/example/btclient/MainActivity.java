@@ -4,9 +4,8 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.widget.TextView;
 import com.example.btclient.Forth.Interpreter;
-import com.example.btclient.Forth.State;
+import com.example.btclient.Forth.ReplGraphics.GraphicsCore;
 import com.example.btclient.Networking.BluetoothClient;
-import com.example.btclient.ReplGraphics.GraphicsCore;
 import com.example.bttest.R;
 
 import java.util.Scanner;

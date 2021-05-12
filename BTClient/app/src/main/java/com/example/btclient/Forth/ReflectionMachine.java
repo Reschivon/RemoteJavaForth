@@ -1,7 +1,5 @@
 package com.example.btclient.Forth;
 
-import dalvik.system.DexFile;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -59,9 +57,11 @@ public class ReflectionMachine {
 		if (theField == null) {
 			state.origin.outputln("field or class " + field + " not found as field", state.id);
 		}
-		
-		theField.setInt(actor, val);
-		
+		if(theField.getType() == int.class)
+			theField.setInt(actor, val);
+		if(theField.getType() == float.class)
+			theField.setFloat(actor, Float.intBitsToFloat(val));
+
 	}catch(Exception e){
 		state.origin.outputln("Something went wrong, see if the new value is an integer", state.id);
 	}}
@@ -73,9 +73,9 @@ public class ReflectionMachine {
 		if (theField == null) {
 			state.origin.outputln("field or class " + field + " not found as field", state.id);
 		}
-		
+
 		theField.set(actor, state.objects.get((-val)-1));
-		
+
 	}catch(Exception e){
 		state.origin.outputln("Something went wrong, see if the new value is right type", state.id);
 	}}
@@ -83,7 +83,7 @@ public class ReflectionMachine {
 	public static void dot_operator(Object actor, String fieldOrClass, State state){ try{
 		// get actual type of attribute
 		Object attribute = ReflectionMachine.getByString(actor, fieldOrClass);
-		
+
 		if (attribute == null) {
 			state.origin.outputln("field or class " + fieldOrClass + " not found as attribute", state.id);
 		}
@@ -95,16 +95,25 @@ public class ReflectionMachine {
 			// get parameters
 			Object[] params = new Object[themethod.getParameterTypes().length];
 			
-			for(int i=0; i<params.length;i++){
+			for(int i=0; i<params.length;i++) {
+				Class theType = themethod.getParameterTypes()[i];
+
 				int stackElem = state.stack.pop();
-				// stack has object address or integer?
-				params[i] = (stackElem < 0)? state.objects.get(-stackElem-1):stackElem;
+
+				if (theType == int.class || theType == Integer.class)
+					params[i] = stackElem;
+				else if (theType == float.class || theType == Float.class) {
+					params[i] = Float.intBitsToFloat(stackElem);
+				}else //is object
+					params[i] = state.objects.get(-stackElem-1);
 			}
 			// invoke
 			Object returnval = themethod.invoke(actor, params);
 			
 			// manage return as object or integer
-			if(returnval instanceof Integer){
+			if(returnval == null){
+
+			}else if(returnval instanceof Integer){
 				state.stack.add((int)returnval);
 			} else {// is object
 				state.objects.add(returnval);
@@ -115,15 +124,18 @@ public class ReflectionMachine {
 		// get the value of field
 		else if(attribute instanceof Field) {
 			Field thefield = ((Field)attribute);
+
 			if (thefield.getType() == int.class || thefield.getType() == Integer.class) {
 				state.stack.add(thefield.getInt(actor));
+			}else if (thefield.getType() == float.class || thefield.getType() == Float.class) {
+				state.stack.add(Float.floatToIntBits(thefield.getFloat(actor)));
 			}
 			else {//is object
 				state.addObject(thefield.get(actor));
 			}
 		}
 	}catch(Exception e){
-		state.origin.outputln("Something went wrong, you're on your own", state.id);
+		state.origin.outputln("Method parameters not found", state.id);
 	}}
 	
 	public static void new_operator(String classname, State state) throws IllegalAccessException, InvocationTargetException, InstantiationException {

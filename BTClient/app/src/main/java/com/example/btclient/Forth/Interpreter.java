@@ -1,14 +1,15 @@
 package com.example.btclient.Forth;
 
-import com.example.btclient.ReplGraphics.GraphicsCore;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 
 //TODO "set" word does not distinguish objects and numbers
 //TODO
 public class Interpreter {
 	
-	// address of first pointer in the linked list that comprises the dictionary
+	// address of pointer to next free address in the dictionary
 	int HERE = -1;
 	
 	// address of QUIT
@@ -20,6 +21,7 @@ public class Interpreter {
 	// starting point for native java methods and fields
 	Object nativeRoot = null;
 	public void setNativeRoot(Object o){nativeRoot = o;}
+
 	// link up names of primitives to their java code
 	HashMap<Integer, ConsumerWithException<State>> primitives = new HashMap<>();
 	
@@ -56,10 +58,12 @@ public class Interpreter {
 		if(action == null){
 			s = new State(this, "default", id);
 			new Thread(() -> s.repl(-1)).start();
+			// Do not auto terminate because null actions indicate the default user thread
 		}else{
 			s = new State(this, action, id);
 			s.input.setautoTerminate(true);
 			new Thread(() -> s.repl(search_word(action))).start();
+			// auto terminate; consider this an async process on the side
 		}
 		threads.put(thread_counter, s);
 		
@@ -99,7 +103,6 @@ public class Interpreter {
 	List<String> string_pool = new ArrayList<>();
 	
 	{
-		
 		// Reflection words
 		declarePrimitive( "set" , state -> {
 			if(state.immediate.get()) {
@@ -228,8 +231,12 @@ public class Interpreter {
 			else memory.set(address, state.stack.pop());
 		});
 		declarePrimitive( "+" , state -> state.stack.add(state.stack.pop() + state.stack.pop()));
+		declarePrimitive( "+F" , state -> state.stack.add(Float.floatToIntBits(
+				Float.intBitsToFloat(state.stack.pop()) + Float.intBitsToFloat(state.stack.pop()))));
 		declarePrimitive( "-" , state -> state.stack.add(-state.stack.pop() + state.stack.pop()));
 		declarePrimitive( "*" , state -> state.stack.add(state.stack.pop() * state.stack.pop()));
+		declarePrimitive( "*F" , state -> state.stack.add(Float.floatToIntBits(
+				Float.intBitsToFloat(state.stack.pop()) * Float.intBitsToFloat(state.stack.pop()))));
 		declarePrimitive( "=" , state -> state.stack.add(state.stack.pop() == state.stack.pop() ? 1 : 0));
 		declarePrimitive( "not" , state -> state.stack.add(state.stack.pop() == 0 ? 1 : 0));
 		declarePrimitive( "and" , state -> state.stack.add(state.stack.pop() & state.stack.pop()));
@@ -286,9 +293,9 @@ public class Interpreter {
 			state.stack.pop();
 		});
 		declarePrimitive("does>", state -> {
-			// in the wake of create, memory looks like this
+			// after making a word with create, memory looks like this
 			// HEADER LIT <body addr> return <empty for jmp addr> <body val>
-			// 																^memory.size()/latest
+			// 																 ^latest
 			//replace return of most recent word with dodoes
 			memory.set(memory.size()-3, search_word("dodoes"));
 			// have dodoes point to the words after does>
@@ -302,7 +309,7 @@ public class Interpreter {
 			state.call_stack.setLast(jmp);
 		});
 		declarePrimitive("interpret", State::interpret);
-		declarePrimitive("greet", state -> outputln("\\xyrplot 4 4 0.5", state.id));
+		declarePrimitive("greet", state -> outputln("\\label 4", state.id));
 		declarePrimitive("stop", State::stop);
 		declarePrimitive("async", state -> state.stack.add(new_thread(state.input.next_token())));
 		declarePrimitive("threads", state ->{
@@ -315,7 +322,7 @@ public class Interpreter {
 		});
 		declarePrimitive("switch-thread", state ->{
 			// so the current user thread will never end
-			// while the user is using it
+			// while the interpreter is running
 			if(!current_thread.name.equals("default"))
 				current_thread.input.setautoTerminate(true);
 			current_thread = threads.get(state.stack.pop());
@@ -350,9 +357,6 @@ public class Interpreter {
 		memory.add(-2);
 	}
 
- 
-	// (caller object '' name of attribute -- return value or address of returned object)
-	
 	/**
 	 * See the other definition of write_string
 	 * This defaults to writing to memory array
@@ -408,7 +412,7 @@ public class Interpreter {
 			int here = HERE;
 			while(here != -1){
 				String word_name = read_string(here);
-				output(here + " " + word_name + " ", id);
+				output("\t" + word_name + " ", id);
 				
 				//move to next word in linked list
 				here = memory.get(here-1);
@@ -417,7 +421,7 @@ public class Interpreter {
 	}
 	
 	/**
-	 * Scans the memory and prints each word, in order of
+	 * Scans the memory and prints a word, in order of
 	 * declaration, along with its definition
 	 * Ignores other non-word data, like variable values
 	 * Should only be used for debugging; assumptions made
@@ -452,11 +456,10 @@ public class Interpreter {
 			String setBoldText = "";
 			output(
 					String.format(
-							"%d %s %s %d ",
+							"[%d %s] %s | ",
 							word_address,
 							setBoldText + word_name + setPlainText,
-							immediate==1?"immdt":"     ",
-							first_op
+							immediate==1?"immdt":"     "
 							),
 					id);
 			
@@ -751,11 +754,26 @@ public class Interpreter {
 				"pies @ .",
 				
 				": go begin 42 . 1500 wait again ;",
+				": deg>rad 0.01745 *F ;"
 
-				"native -> age 2 + .",
+				/*": ship native -> ship ;",
+				": x ship -> x ;",
+				": setx ship set x ;",
+				": +x x +F setx ;",
+
+				": rot ship -> rot ;",
+				": setrot ship set rot ;",
+				": +rot deg>rad rot +F setrot ;",
+
+				": forward 0.5 ship -> forward ;",
+				": tick 10. +rot forward ;",
+				": loopy begin tick 100 wait again ;"
+*/
+		);
+		/*		"native -> age 2 + .",
 				"7 native set age",
 				"native -> human_years 27 - .",
-				"new com.example.btclient.MainActivity$dog",
+				"new Asteroids$dog",
 				"dup 50 swap set fur_darkness",
 				"native -> offspring",
 				"-> fur_darkness 35 - .",
@@ -763,6 +781,6 @@ public class Interpreter {
 				": deer create , does> @ . 11 . 22 . ;",
 				"22 deer ok",
 				"ok"
-		);
+		);*/
 	}
 }
