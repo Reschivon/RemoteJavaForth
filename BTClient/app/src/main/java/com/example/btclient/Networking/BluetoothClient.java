@@ -39,8 +39,13 @@ public class BluetoothClient {
 	volatile boolean active = false;
 	private final Thread listen = new Thread(()->{
 		while(true) {
-			if(!active)
+			if(!active){
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException e) { }
 				continue;
+			}
+			
 			String lineRead;
 			try {
 				lineRead = bReader.readLine();
@@ -53,6 +58,10 @@ public class BluetoothClient {
 			for(responseListener l : listeners)
 				l.responseReceived(lineRead);
 			outAppend("<Host> " + lineRead);
+			
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) { }
 		}
 	});
 	

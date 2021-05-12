@@ -60,15 +60,7 @@ public class State {
 				call_stack.incrementLast();
 			}
 		}
-		/* All instructions must be stored in memory, even the
-		 * uncompiled immediate mode stuff. ENTRY_POINT is a pointer
-		 * to an integer of reserved space for instructions
-		 * executed directly from the input stream. At ENTRY_POINT + 1
-		 * is a return which will clear the pointer to ENTRY_POINT
-		 * after the instruction there executes
-		 */
-
-//       for(int i=0;i<30;i++){
+		
 		while (repl_running) {
 			int word_address = memory.get(call_stack.last());
 			
@@ -166,7 +158,7 @@ public class State {
 			try {
 				primitives.get(address).accept(this);
 			}catch (Exception e) {
-				origin.outputln("Uncaught Exception ", id);
+				origin.outputln("Exception ", id);
 				e.printStackTrace();
 			}
 			return true;

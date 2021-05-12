@@ -1,3 +1,5 @@
+import ReplGraphics.GraphicsCore;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,6 +21,7 @@ public class BluetoothHost {
     StreamConnectionNotifier streamConnNotifier;
     BufferedReader bReader;
     PrintWriter pWriter;
+    GraphicsCore graphics = new GraphicsCore();
 
     public BluetoothHost() throws BluetoothStateException {
         // display local device address and name
@@ -48,7 +51,22 @@ public class BluetoothHost {
                 System.out.println("Connection Closed");
                 continue;
             }
-            System.out.println("<Client> " + lineRead);
+
+            if(lineRead.length() == 0)
+                continue;
+
+            // escape sequence for graphics modules
+            if(lineRead.charAt(0) == '\\') {
+                //System.out.print("");
+                graphics.feed(lineRead.substring(1));
+            }else{
+                System.out.println("<Client> " + lineRead);
+            }
+
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+            }
         }
     });
 

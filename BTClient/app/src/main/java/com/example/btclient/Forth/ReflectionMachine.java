@@ -60,11 +60,21 @@ public class ReflectionMachine {
 			state.origin.outputln("field or class " + field + " not found as field", state.id);
 		}
 		
-		if(val >= 0){ // It's an integer
-			theField.setInt(actor, val);
-		}else{ // It's an object
-			theField.set(actor, state.objects.get((-val)-1));
+		theField.setInt(actor, val);
+		
+	}catch(Exception e){
+		state.origin.outputln("Something went wrong, see if the new value is an integer", state.id);
+	}}
+	
+	public static void set_operator_object(Object actor, String field, int val, State state){ try{
+		// get actual type of attribute
+		Field theField = ReflectionMachine.getField(actor, field);
+		
+		if (theField == null) {
+			state.origin.outputln("field or class " + field + " not found as field", state.id);
 		}
+		
+		theField.set(actor, state.objects.get((-val)-1));
 		
 	}catch(Exception e){
 		state.origin.outputln("Something went wrong, see if the new value is right type", state.id);
@@ -120,15 +130,18 @@ public class ReflectionMachine {
 		Constructor[] constructors;
 		try {
 			constructors = Class.forName(classname).getConstructors();
-		} catch (ClassNotFoundException e) {
+		} catch (ClassNotFoundException | NoClassDefFoundError e) {
 			state.origin.outputln(classname + " was not found. Fully qualified names required", state.id);
 			return;
 		}
 		
 		if (constructors.length != 0) {
 			Class[] o = constructors[0].getParameterTypes();
+			state.origin.output(o.length == 0?
+					"Using no-arg constructor":"Using constructor with args: ", state.id);
 			for (Class i : o)
 				state.origin.output(i + " ", state.id);
+			state.origin.output("\n", state.id);
 		}else{
 			// no arg constructor
 			try {

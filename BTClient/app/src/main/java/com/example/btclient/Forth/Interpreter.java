@@ -4,13 +4,14 @@ import com.example.btclient.ReplGraphics.GraphicsCore;
 
 import java.util.*;
 
-
+//TODO "set" word does not distinguish objects and numbers
+//TODO
 public class Interpreter {
 	
 	// address of first pointer in the linked list that comprises the dictionary
 	int HERE = -1;
-	// address of initial opcode, or main() for c programmers.
-	// will be populated later
+	
+	// address of QUIT
 	int ENTRY_POINT;
 	
 	// memory. Double array
@@ -27,50 +28,6 @@ public class Interpreter {
 	private State current_thread = null;
 	private int thread_counter = 0;
 	HashMap<Integer, State> threads = new HashMap<>();
-	
-	static class dog{
-		public int age = 9;
-		public int fur_darkness = 42;
-		
-		public int human_years(){
-			return age * 7;
-		}
-		
-		public dog offspring(dog mate){
-			dog offspring = new dog();
-			offspring.fur_darkness
-					= (mate.fur_darkness + fur_darkness) / 2;
-			offspring.age = 1;
-			
-			return offspring;
-		}
-	}
-	
-	public static void main(String[] args) {
-		GraphicsCore graphics = new GraphicsCore();
-		
-		Interpreter interpreter = new Interpreter(
-				string -> {
-					// escape sequence for graphics modules
-					if(string.charAt(0) == '\\') {
-						graphics.feed(string.substring(1));
-					}else{
-						System.out.print(string);
-					}
-				},
-				new dog()
-		);
-		
-		Scanner scanner = new Scanner(System.in);
-		new Thread(() -> {
-			while(true) {
-				interpreter.feed(scanner.nextLine());
-			}
-		}).start();
-		
-		int def = interpreter.new_thread(null); //default thread
-		interpreter.set_user_thread(def);
-	}
 	
 	public Interpreter(outputListener outputL, Object root) {
 		setOutputListener(outputL);
@@ -142,6 +99,8 @@ public class Interpreter {
 	List<String> string_pool = new ArrayList<>();
 	
 	{
+		
+		// Reflection words
 		declarePrimitive( "set" , state -> {
 			if(state.immediate.get()) {
 				// the calling object
@@ -164,17 +123,32 @@ public class Interpreter {
 			Object actor = state.getObject();
 			ReflectionMachine.set_operator(actor, field_name, state.stack.pop(), state);
 		});
+		declarePrimitive( "setObject" , state -> {
+			if(state.immediate.get()) {
+				// the calling object
+				Object actor = state.getObject();
+				// the name of the object's field or method
+				String fieldOrClass = state.input.next_token();
+				ReflectionMachine.set_operator_object(actor, fieldOrClass, state.stack.pop(), state);
+			}else{
+				// index of field or class
+				memory.add(state.origin.search_word("lit"));
+				string_pool.add(state.input.next_token());
+				memory.add(string_pool.size()-1);
+				memory.add(state.origin.search_word("doset"));
+			}
+		}, true);
+		declarePrimitive( "dosetObject" , state -> {
+			// classname
+			String field_name = string_pool.get(state.stack.pop());
+			// the calling object
+			Object actor = state.getObject();
+			ReflectionMachine.set_operator_object(actor, field_name, state.stack.pop(), state);
+		});
 		declarePrimitive( "donew" , state -> {
 			// classname
 			String classname = string_pool.get(state.stack.pop());
 			ReflectionMachine.new_operator(classname, state);
-		});
-		declarePrimitive( "dodot" , state -> {
-			// index of field or class
-			String fieldOrClass = string_pool.get(state.stack.pop());
-			// the calling object
-			Object actor = state.getObject();
-			ReflectionMachine.dot_operator(actor, fieldOrClass, state);
 		});
 		declarePrimitive( "new" , state -> {
 			if(state.immediate.get()) {
@@ -203,6 +177,13 @@ public class Interpreter {
 				memory.add(state.origin.search_word("dodot"));
 			}
 		}, true);
+		declarePrimitive( "dodot" , state -> {
+			// index of field or class
+			String fieldOrClass = string_pool.get(state.stack.pop());
+			// the calling object
+			Object actor = state.getObject();
+			ReflectionMachine.dot_operator(actor, fieldOrClass, state);
+		});
 		declarePrimitive( "fields", state -> ReflectionMachine.fields(state.getObject(), state));
 		declarePrimitive( "methods" , state -> ReflectionMachine.methods(state.getObject(), state));
 		declarePrimitive( "objects" , state -> {
@@ -212,8 +193,12 @@ public class Interpreter {
 		});
 		declarePrimitive( "native" , state -> state.addObject(nativeRoot));
 		declarePrimitive( ".S" , state -> {
-			for (int tok : state.stack)
-				output(tok + " ", state.id);
+			for (int tok : state.stack) {
+				if(tok < 0) // is object
+					output(state.objects.get(-tok-1).getClass() + " ", state.id);
+				else
+					output(tok + " ", state.id);
+			}
 			outputln("<-", state.id);
 		});
 		declarePrimitive( "words" , state -> list_words(state.id));
@@ -221,6 +206,9 @@ public class Interpreter {
 		declarePrimitive( "here" , state -> state.stack.add(memory.size()));
 		declarePrimitive( "latest" , state -> state.stack.add(HERE));
 		declarePrimitive( "." , state -> outputln(state.stack.pop(), state.id));
+		declarePrimitive( ".F" , state -> outputln(Float.intBitsToFloat(state.stack.pop()), state.id));
+		declarePrimitive( "F:" , state -> state.stack.add(
+				Float.floatToIntBits(Float.valueOf(state.input.next_token()))));
 		declarePrimitive( "exit" , state -> state.call_stack.remove(state.call_stack.size() - 1), true);
 		declarePrimitive( "word" , state -> state.stack.add(search_word(state.input.next_token())));
 		declarePrimitive( "," , state -> {
@@ -491,7 +479,7 @@ public class Interpreter {
 				
 				//dodoes encountered
 				if(name.equals("dodoes")){
-					output("dodoes->", id);
+					output("dodoes-> ", id);
 					j = memory.get(j+1);
 					continue;
 				}
@@ -767,7 +755,7 @@ public class Interpreter {
 				"native -> age 2 + .",
 				"7 native set age",
 				"native -> human_years 27 - .",
-				"new com.example.btclient.Forth.Interpreter$dog",
+				"new com.example.btclient.MainActivity$dog",
 				"dup 50 swap set fur_darkness",
 				"native -> offspring",
 				"-> fur_darkness 35 - .",
